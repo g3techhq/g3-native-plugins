@@ -79,3 +79,31 @@ dx_native_plugins::android_asset_links_route! {
     sha256_cert_fingerprints: ["AA:BB:CC"],
 }
 ```
+
+## System Back Button
+
+Android delivers back to the Activity, never to the WebView, so a web app
+hosted this way exits on the first press however it is written. The plugin
+takes the press and turns it into `history.back()` — the same event a browser's
+back button produces, so whatever the app already does for a traversal keeps
+working.
+
+Interception is off until asked for, because only the app knows whether there
+is anywhere to go back to. Leaving it on at the root of the stack means the
+user cannot leave.
+
+```rust,ignore
+use dioxus::prelude::*;
+use dx_native_plugins::NativePlugins;
+
+let mut plugins = use_context::<NativePlugins>();
+let navigator = use_navigator();
+
+// Re-run wherever the route changes.
+use_effect(move || {
+    let _ = plugins.back_button.write().set_intercepting(navigator.can_go_back());
+});
+```
+
+iOS has no system back press and on the web the browser owns it, so both are
+inert — callers need no `cfg` of their own.

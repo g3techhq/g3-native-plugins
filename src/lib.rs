@@ -19,6 +19,14 @@ cfg_if::cfg_if! {
 }
 
 cfg_if::cfg_if! {
+    if #[cfg(feature = "back-button")] {
+        mod back_button;
+        #[allow(unused_imports)]
+        pub use back_button::*;
+    }
+}
+
+cfg_if::cfg_if! {
     if #[cfg(feature = "external-url")] {
         mod external_url;
         #[allow(unused_imports)]
@@ -27,7 +35,12 @@ cfg_if::cfg_if! {
 }
 
 #[cfg(all(
-    any(feature = "auth", feature = "clipboard", feature = "external-url"),
+    any(
+        feature = "auth",
+        feature = "back-button",
+        feature = "clipboard",
+        feature = "external-url"
+    ),
     any(
         target_arch = "wasm32",
         target_os = "android",
@@ -52,6 +65,10 @@ pub struct NativePlugins {
         any(target_os = "android", target_os = "ios", target_os = "macos")
     ))]
     pub auth: Signal<Auth>,
+    /// Available on every target: the non-Android builds are inert, so callers
+    /// need no cfg of their own.
+    #[cfg(feature = "back-button")]
+    pub back_button: Signal<BackButton>,
     #[cfg(feature = "clipboard")]
     pub clipboard: Signal<Clipboard>,
     #[cfg(all(
@@ -75,6 +92,8 @@ impl NativePlugins {
                 any(target_os = "android", target_os = "ios", target_os = "macos")
             ))]
             auth: Signal::new(Auth::new()),
+            #[cfg(feature = "back-button")]
+            back_button: Signal::new(BackButton::new()),
             #[cfg(feature = "clipboard")]
             clipboard: Signal::new(Clipboard::new()),
             #[cfg(all(
@@ -118,6 +137,22 @@ mod tests {
             .split("#[cfg(test)]")
             .next()
             .expect("source should split before tests")
+    }
+
+    #[test]
+    fn back_button_interception_is_opt_in() {
+        // A callback left enabled at the root of the stack traps the user in
+        // the app, so nothing may intercept until the app asks.
+        let source = production_source(include_str!("back_button.rs"));
+        assert!(source.contains("intercepting: false"));
+        assert!(source.contains("pub fn set_intercepting"));
+        // The press becomes the same event a browser back button produces, so
+        // there is no second navigation path to keep in step.
+        let kotlin = include_str!(
+            "android/back_button/src/main/kotlin/dev/dioxus/dx_native_plugins/back_button/BackButtonPlugin.kt"
+        );
+        assert!(kotlin.contains("window.history.back()"));
+        assert!(kotlin.contains("OnBackPressedCallback(false)"));
     }
 
     #[test]

@@ -32,6 +32,7 @@ jni = "0.21.0"
 
 [features]
 default = []
+back-button = []
 clipboard = []
 auth = []
 external-url = []
