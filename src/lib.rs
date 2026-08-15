@@ -146,12 +146,13 @@ mod tests {
         let source = production_source(include_str!("back_button.rs"));
         assert!(source.contains("intercepting: false"));
         assert!(source.contains("pub fn set_intercepting"));
-        // The press becomes the same event a browser back button produces, so
-        // there is no second navigation path to keep in step.
+        // The router's history lives in Rust, not in the WebView, so the press
+        // has to cross back over the bridge rather than call history.back().
         let kotlin = include_str!(
             "android/back_button/src/main/kotlin/dev/dioxus/dx_native_plugins/back_button/BackButtonPlugin.kt"
         );
-        assert!(kotlin.contains("window.history.back()"));
+        assert!(kotlin.contains("dxnativeback"));
+        assert!(kotlin.contains("evaluateJavascript(BACK_EVENT_SCRIPT"));
         assert!(kotlin.contains("OnBackPressedCallback(false)"));
     }
 

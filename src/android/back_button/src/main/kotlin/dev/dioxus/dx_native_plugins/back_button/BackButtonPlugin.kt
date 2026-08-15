@@ -15,16 +15,25 @@ import androidx.activity.ComponentActivity
  * JavaScript. Registering a callback on the dispatcher takes that press before
  * the default handler sees it.
  *
- * The press is forwarded as `history.back()` rather than through a Rust
- * callback, because that is the same event a browser's own back button
- * produces: whatever the app already does for a traversal keeps working, with
- * no second path to maintain.
+ * The press is forwarded as a DOM event rather than as `history.back()`. On
+ * this platform the Rust binary runs outside the WebView and the router keeps
+ * its history there, so the WebView's own history is not the app's — calling
+ * back on it navigates nothing. Dispatching an event lets the Rust side pick
+ * it up over the same bridge it already uses to talk to the page, and act on
+ * the history that actually exists.
  *
  * Whether to intercept at all is left to the caller via [setInterceptingFromRust].
  * Only the app knows if there is anywhere to go back to, and a callback that
  * stays enabled at the root would trap the user in the app.
  */
 class BackButtonPlugin(private val activity: Activity) {
+    companion object {
+        /// Named for the crate rather than any one app, since the plugin does
+        /// not know who is listening.
+        const val BACK_EVENT_SCRIPT =
+            "window.dispatchEvent(new Event('dxnativeback'))"
+    }
+
     private var callback: OnBackPressedCallback? = null
 
     private fun findWebView(view: View): WebView? {
@@ -50,7 +59,7 @@ class BackButtonPlugin(private val activity: Activity) {
                     activity.onBackPressedDispatcher.onBackPressed()
                     return
                 }
-                webView.evaluateJavascript("window.history.back()", null)
+                webView.evaluateJavascript(BACK_EVENT_SCRIPT, null)
             }
         }
         owner.onBackPressedDispatcher.addCallback(owner, created)

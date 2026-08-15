@@ -10,9 +10,13 @@ unsafe extern "Kotlin" {
 ///
 /// Android delivers back to the Activity rather than the WebView, so a web app
 /// hosted this way exits on the first press however it is written. Intercepting
-/// turns the press into `history.back()` instead, which is the same event a
-/// browser's back button produces — so whatever the app already does for a
-/// traversal keeps working unchanged.
+/// dispatches a `dxnativeback` event on `window` instead, for the app to act on.
+///
+/// It is an event rather than a direct `history.back()` because the Rust binary
+/// runs outside the WebView here and the router keeps its history there — the
+/// WebView's own history is not the app's, so going back on it navigates
+/// nothing. The event crosses back over the same bridge the app already uses to
+/// talk to the page, and it acts on the history it really has.
 ///
 /// Interception is off until asked for. Only the app knows whether there is
 /// anywhere to go back to, and a permanently enabled callback would leave the
