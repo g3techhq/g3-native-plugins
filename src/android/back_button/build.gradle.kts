@@ -42,5 +42,9 @@ dependencies {
     // OnBackPressedDispatcher. The platform's deprecated Activity.onBackPressed
     // is not usable on newer Android, where predictive back requires a
     // registered callback.
-    implementation("androidx.activity:activity-ktx:1.9.0")
+    //
+    // compileOnly because the host activity is an AppCompatActivity and so
+    // already brings androidx.activity with it; packaging a second copy in the
+    // plugin's own archive only risks a version clash.
+    compileOnly("androidx.activity:activity-ktx:1.9.0")
 }
