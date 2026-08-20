@@ -9,7 +9,7 @@ import android.content.Intent
 class ClipboardPlugin(private val activity: Activity) {
     fun copyToClipboardFromRust(text: String) {
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Copied From Greenside Partee", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Shared link", text))
     }
 
     fun shareFromRust(text: String) {
@@ -18,6 +18,6 @@ class ClipboardPlugin(private val activity: Activity) {
             putExtra(Intent.EXTRA_TEXT, text)
             type = "text/plain"
         }
-        activity.startActivity(Intent.createChooser(intent, "Share To:"))
+        activity.startActivity(Intent.createChooser(intent, "Share with"))
     }
 }

@@ -116,12 +116,8 @@ impl Clipboard {
         };
 
         let share_data = js_sys::Object::new();
-        js_sys::Reflect::set(
-            &share_data,
-            &"title".into(),
-            &"Greenside Partee Join Game".into(),
-        )
-        .map_err(|_| "Unable to prepare share title".to_string())?;
+        js_sys::Reflect::set(&share_data, &"title".into(), &"Share".into())
+            .map_err(|_| "Unable to prepare share title".to_string())?;
         js_sys::Reflect::set(&share_data, &"text".into(), &text.into())
             .map_err(|_| "Unable to prepare share text".to_string())?;
 

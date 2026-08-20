@@ -34,12 +34,21 @@ cfg_if::cfg_if! {
     }
 }
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "media")] {
+        mod media;
+        #[allow(unused_imports)]
+        pub use media::*;
+    }
+}
+
 #[cfg(all(
     any(
         feature = "auth",
         feature = "back-button",
         feature = "clipboard",
-        feature = "external-url"
+        feature = "external-url",
+        feature = "media"
     ),
     any(
         target_arch = "wasm32",
@@ -76,6 +85,8 @@ pub struct NativePlugins {
         any(target_arch = "wasm32", target_os = "android", target_os = "ios")
     ))]
     pub external_url: Signal<ExternalUrl>,
+    #[cfg(feature = "media")]
+    pub media: Signal<Media>,
 }
 
 #[cfg(any(
@@ -101,6 +112,8 @@ impl NativePlugins {
                 any(target_arch = "wasm32", target_os = "android", target_os = "ios")
             ))]
             external_url: Signal::new(ExternalUrl::new()),
+            #[cfg(feature = "media")]
+            media: Signal::new(Media::new()),
         }
     }
 }
@@ -177,9 +190,11 @@ mod tests {
         assert!(source.contains("pub auth: Signal<Auth>"));
         assert!(source.contains("pub clipboard: Signal<Clipboard>"));
         assert!(source.contains("pub external_url: Signal<ExternalUrl>"));
+        assert!(source.contains("pub media: Signal<Media>"));
         assert!(source.contains("auth: Signal::new(Auth::new())"));
         assert!(source.contains("clipboard: Signal::new(Clipboard::new())"));
         assert!(source.contains("external_url: Signal::new(ExternalUrl::new())"));
+        assert!(source.contains("media: Signal::new(Media::new())"));
         assert!(source.contains("impl Default for NativePlugins"));
         assert!(source.contains("Self::new()"));
     }
@@ -243,6 +258,29 @@ mod tests {
         assert!(auth.contains("pub fn start_google_auth(&mut self) -> Result<AuthResult, String>"));
         assert!(kotlin_auth.contains("fun startGoogleAuthFromRust(): String?"));
         assert!(kotlin_auth.contains("GoogleIdTokenCredential.createFrom"));
+    }
+
+    #[test]
+    fn android_media_plugin_owns_mobile_playback_capabilities() {
+        let rust = include_str!("media.rs");
+        let kotlin = include_str!(
+            "android/media/src/main/kotlin/dev/dioxus/dx_native_plugins/media/MediaPlugin.kt"
+        );
+        let service = include_str!(
+            "android/media/src/main/kotlin/dev/dioxus/dx_native_plugins/media/PlaybackService.kt"
+        );
+        let manifest = include_str!("android/media/src/main/AndroidManifest.xml");
+
+        assert!(rust.contains("getClassLoader"));
+        assert!(rust.contains("enter_picture_in_picture"));
+        assert!(rust.contains("set_orientation"));
+        assert!(rust.contains("set_playback_active"));
+        assert!(kotlin.contains("enterPictureInPictureMode"));
+        assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));
+        assert!(kotlin.contains("--android-status-bar-inset"));
+        assert!(service.contains("startForeground"));
+        assert!(manifest.contains("android:supportsPictureInPicture=\"true\""));
+        assert!(manifest.contains("foregroundServiceType=\"mediaPlayback\""));
     }
     #[test]
     fn plugin_wrapper_constructors_stay_crate_private_and_lazy() {

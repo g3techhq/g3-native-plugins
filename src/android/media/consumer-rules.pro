@@ -1,0 +1,1 @@
+-keep class dev.dioxus.dx_native_plugins.media.** { *; }

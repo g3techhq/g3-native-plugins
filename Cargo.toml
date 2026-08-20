@@ -3,7 +3,7 @@ name = "dx-native-plugins"
 version = "0.1.0"
 
 edition = "2024"
-description = "Dioxus native plugin wrappers for clipboard, auth, external URLs, and deep-link metadata."
+description = "Dioxus native plugin wrappers for clipboard, auth, media, external URLs, and deep-link metadata."
 readme = "README.md"
 documentation = "https://docs.rs/dx-native-plugins"
 license = "MIT OR Apache-2.0"
@@ -37,3 +37,4 @@ back-button = []
 clipboard = []
 auth = []
 external-url = []
+media = []
