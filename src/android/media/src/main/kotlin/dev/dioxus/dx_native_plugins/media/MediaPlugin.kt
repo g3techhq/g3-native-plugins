@@ -1,6 +1,7 @@
 package dev.dioxus.dx_native_plugins.media
 
 import android.app.Activity
+import android.app.Application
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -11,6 +12,7 @@ import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.graphics.drawable.Icon
 import android.os.Build
+import android.os.Bundle
 import android.util.Rational
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +35,10 @@ class MediaPlugin(private val activity: Activity) {
     private var pipWidth = 16
     private var pipHeight = 9
     private var isPlaying = true
+    private var playbackActive = false
+    private var playbackTitle = ""
+    private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
+    private var pendingWebPlaybackResume: Runnable? = null
 
     private fun findWebView(view: View): WebView? {
         if (view is WebView) return view
@@ -45,12 +51,75 @@ class MediaPlugin(private val activity: Activity) {
     }
 
     private fun setPictureInPictureDomState(active: Boolean) {
-        val script = if (active) {
-            "document.documentElement.dataset.androidPip='true'"
+        val state = if (active) "true" else "false"
+        val stateUpdate = if (active) {
+            "document.documentElement.dataset.androidPip='true';"
         } else {
-            "delete document.documentElement.dataset.androidPip"
+            "delete document.documentElement.dataset.androidPip;"
         }
+        val script = stateUpdate +
+            "window.dispatchEvent(new CustomEvent('tawnynativepictureinpicturechange'," +
+            "{detail:{active:$state}}))"
         findWebView(activity.window.decorView)?.evaluateJavascript(script, null)
+    }
+
+    private fun notifyWebPlaybackResume() {
+        findWebView(activity.window.decorView)?.evaluateJavascript(
+            "window.dispatchEvent(new Event('tawnynativeplaybackresume'))",
+            null,
+        )
+    }
+
+    private fun scheduleWebPlaybackResume() {
+        val root = activity.window.decorView
+        pendingWebPlaybackResume?.let(root::removeCallbacks)
+        val resume = Runnable {
+            pendingWebPlaybackResume = null
+            if (!playbackActive) return@Runnable
+            // The host pauses its WebView with the Activity. Resume it only at
+            // that real lifecycle boundary; doing this for every HTML play
+            // event repeatedly reset Chromium's audio clock and timers.
+            findWebView(root)?.let { webView ->
+                webView.onResume()
+                webView.resumeTimers()
+            }
+            notifyWebPlaybackResume()
+        }
+        pendingWebPlaybackResume = resume
+        root.post(resume)
+    }
+
+    private fun ensureActivityLifecycleCallbacks() {
+        if (lifecycleCallbacks != null) return
+        val callbacks = object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityPaused(paused: Activity) {
+                if (paused === activity && playbackActive) scheduleWebPlaybackResume()
+            }
+
+            override fun onActivityStopped(stopped: Activity) {
+                if (stopped === activity && playbackActive) scheduleWebPlaybackResume()
+            }
+
+            override fun onActivityResumed(resumed: Activity) {
+                if (resumed === activity && playbackActive) {
+                    activity.window.decorView.post { notifyWebPlaybackResume() }
+                }
+            }
+
+            override fun onActivityDestroyed(destroyed: Activity) {
+                if (destroyed !== activity) return
+                pendingWebPlaybackResume?.let(activity.window.decorView::removeCallbacks)
+                pendingWebPlaybackResume = null
+                activity.application.unregisterActivityLifecycleCallbacks(this)
+                lifecycleCallbacks = null
+            }
+
+            override fun onActivityCreated(created: Activity, state: Bundle?) = Unit
+            override fun onActivityStarted(started: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
+        }
+        activity.application.registerActivityLifecycleCallbacks(callbacks)
+        lifecycleCallbacks = callbacks
     }
 
     private fun commandPendingIntent(command: String, requestCode: Int): PendingIntent {
@@ -117,8 +186,9 @@ class MediaPlugin(private val activity: Activity) {
                     "v.currentTime=Math.min(end,v.currentTime+10);return 'forwarded';})()"
             COMMAND_TOGGLE ->
                 "(() => { const v=document.querySelector('#tawny-player video');" +
-                    "if(!v)return 'missing';if(v.paused){v.play().catch(()=>{});return 'playing';}" +
-                    "v.pause();return 'paused';})()"
+                    "if(!v)return 'missing';if(v.paused){v.__tawnyPlaybackIntent=true;" +
+                    "v.play().catch(()=>{});return 'playing';}" +
+                    "v.__tawnyPlaybackIntent=false;v.pause();return 'paused';})()"
             else -> return
         }
         webView.evaluateJavascript(script) { result ->
@@ -182,6 +252,7 @@ class MediaPlugin(private val activity: Activity) {
             root.requestApplyInsets()
             findWebView(root)?.settings?.mediaPlaybackRequiresUserGesture = false
             ensurePictureInPictureCallbacks()
+            ensureActivityLifecycleCallbacks()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setPictureInPictureDomState(activity.isInPictureInPictureMode)
             }
@@ -213,6 +284,10 @@ class MediaPlugin(private val activity: Activity) {
 
     fun setPlaybackActiveFromRust(active: Boolean, title: String) {
         activity.runOnUiThread {
+            val wasActive = playbackActive
+            val titleChanged = active && title != playbackTitle
+            playbackActive = active
+            playbackTitle = if (active) title else ""
             isPlaying = active
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.isInPictureInPictureMode) {
                 updatePictureInPictureParams()
@@ -221,18 +296,20 @@ class MediaPlugin(private val activity: Activity) {
                 putExtra(PlaybackService.EXTRA_TITLE, title)
             }
             if (active) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    activity.startForegroundService(intent)
-                } else {
-                    activity.startService(intent)
+                // Starting an already-running foreground service and forcing
+                // the WebView lifecycle on every duplicate `play` event causes
+                // audible clock resets. Only start/update it when state or
+                // metadata actually changed.
+                if (!wasActive || titleChanged) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        activity.startForegroundService(intent)
+                    } else {
+                        activity.startService(intent)
+                    }
                 }
-                // Wry pauses the WebView with the Activity. Keeping its media
-                // clock resumed lets the foreground media service do its job.
-                findWebView(activity.window.decorView)?.let {
-                    it.onResume()
-                    it.resumeTimers()
-                }
-            } else {
+            } else if (wasActive) {
+                pendingWebPlaybackResume?.let(activity.window.decorView::removeCallbacks)
+                pendingWebPlaybackResume = null
                 activity.stopService(intent)
             }
         }

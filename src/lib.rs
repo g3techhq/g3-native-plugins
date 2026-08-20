@@ -280,6 +280,10 @@ mod tests {
         assert!(kotlin.contains("COMMAND_REWIND"));
         assert!(kotlin.contains("COMMAND_FORWARD"));
         assert!(kotlin.contains("dataset.androidPip"));
+        assert!(kotlin.contains("tawnynativepictureinpicturechange"));
+        assert!(kotlin.contains("tawnynativeplaybackresume"));
+        assert!(kotlin.contains("Application.ActivityLifecycleCallbacks"));
+        assert!(kotlin.contains("if (!wasActive || titleChanged)"));
         assert!(!kotlin.contains("setSourceRectHint"));
         assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));
         assert!(kotlin.contains("--android-status-bar-inset"));
