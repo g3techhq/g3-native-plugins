@@ -2,9 +2,16 @@
 #[manganis::ffi("src/android/back_button")]
 unsafe extern "Kotlin" {
     pub type BackButtonPlugin;
-
-    pub fn setInterceptingFromRust(this: &BackButtonPlugin, intercepting: bool);
 }
+
+#[cfg(target_os = "android")]
+use jni::{
+    JavaVM,
+    objects::{GlobalRef, JClass, JObject, JValue},
+};
+
+#[cfg(target_os = "android")]
+const BACK_BUTTON_PLUGIN_CLASS: &str = "dev.dioxus.dx_native_plugins.back_button.BackButtonPlugin";
 
 /// The system back gesture, routed into the app's own history.
 ///
@@ -27,7 +34,7 @@ unsafe extern "Kotlin" {
 /// their own.
 #[cfg(target_os = "android")]
 pub struct BackButton {
-    plugin: Option<BackButtonPlugin>,
+    plugin: Option<GlobalRef>,
     intercepting: bool,
 }
 
@@ -45,12 +52,55 @@ impl BackButton {
         }
     }
 
-    fn get_plugin(&mut self) -> Result<&BackButtonPlugin, String> {
+    fn get_plugin(&mut self) -> Result<&GlobalRef, String> {
         if self.plugin.is_none() {
+            let android = ndk_context::android_context();
+            let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
+                .map_err(|error| format!("Failed to access Android VM: {error}"))?;
+            let mut env = vm
+                .attach_current_thread_permanently()
+                .map_err(|error| format!("Failed to attach plugin thread: {error}"))?;
+            // JNI FindClass uses the system loader on Rust-created threads.
+            // Ask the Activity for its loader explicitly so the Kotlin source
+            // bundled by Manganis can be resolved from the app's dex.
+            let activity = unsafe { JObject::from_raw(android.context().cast()) };
+            let loader = env
+                .call_method(
+                    &activity,
+                    "getClassLoader",
+                    "()Ljava/lang/ClassLoader;",
+                    &[],
+                )
+                .and_then(|value| value.l())
+                .map_err(|error| format!("Failed to obtain app class loader: {error}"))?;
+            let name = env
+                .new_string(BACK_BUTTON_PLUGIN_CLASS)
+                .map_err(|error| format!("Failed to create plugin class name: {error}"))?;
+            let name_object = JObject::from(name);
+            let class_object = env
+                .call_method(
+                    loader,
+                    "loadClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    &[JValue::Object(&name_object)],
+                )
+                .and_then(|value| value.l())
+                .map_err(|error| format!("Failed to load BackButtonPlugin: {error}"))?;
+            let class = JClass::from(class_object);
+            let instance = env
+                .new_object(
+                    class,
+                    "(Landroid/app/Activity;)V",
+                    &[JValue::Object(&activity)],
+                )
+                .map_err(|error| format!("Failed to create BackButtonPlugin: {error}"))?;
             self.plugin = Some(
-                BackButtonPlugin::new()
-                    .map_err(|error| format!("Failed to create BackButtonPlugin: {error:?}"))?,
+                env.new_global_ref(instance)
+                    .map_err(|error| format!("Failed to retain BackButtonPlugin: {error}"))?,
             );
+            // `context()` is a borrowed Activity reference owned by Dioxus;
+            // do not let the local wrapper try to dispose it.
+            std::mem::forget(activity);
         }
         Ok(self.plugin.as_ref().unwrap())
     }
@@ -69,7 +119,19 @@ impl BackButton {
             return Ok(());
         }
         let plugin = self.get_plugin()?;
-        setInterceptingFromRust(plugin, intercepting)?;
+        let android = ndk_context::android_context();
+        let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
+            .map_err(|error| format!("Failed to access Android VM: {error}"))?;
+        let mut env = vm
+            .attach_current_thread_permanently()
+            .map_err(|error| format!("Failed to attach plugin thread: {error}"))?;
+        env.call_method(
+            plugin.as_obj(),
+            "setInterceptingFromRust",
+            "(Z)V",
+            &[JValue::Bool(intercepting.into())],
+        )
+        .map_err(|error| format!("Failed to update Back interception: {error}"))?;
         self.intercepting = intercepting;
         Ok(())
     }

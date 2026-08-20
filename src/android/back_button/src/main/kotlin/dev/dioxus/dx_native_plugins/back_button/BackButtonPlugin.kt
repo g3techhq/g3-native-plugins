@@ -68,7 +68,11 @@ class BackButtonPlugin(private val activity: Activity) {
     }
 
     fun setInterceptingFromRust(intercepting: Boolean) {
-        val callback = ensureCallback() ?: return
-        activity.runOnUiThread { callback.isEnabled = intercepting }
+        // Registration as well as mutation belongs on Android's main thread.
+        // Rust/Dioxus effects execute on a native worker thread.
+        activity.runOnUiThread {
+            val callback = ensureCallback() ?: return@runOnUiThread
+            callback.isEnabled = intercepting
+        }
     }
 }

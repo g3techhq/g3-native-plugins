@@ -108,23 +108,6 @@ use_effect(move || {
 iOS has no system back press and on the web the browser owns it, so both are
 inert — callers need no `cfg` of their own.
 
-### Known constraint: the class must be resolved from the main thread
-
-`BackButtonPlugin` is currently wired but unusable, and the reason is worth
-recording. Constructing it from a Dioxus effect crashes with:
-
-```
-java.lang.ClassNotFoundException: Didn't find class
-"dev.dioxus.dx_native_plugins.back_button.BackButtonPlugin" on path:
-DexPathList[[directory "."], nativeLibraryDirectories=[/system/lib64, ...]]
-```
-
-Note the path: no app dex is on it at all. That is the *system* class loader,
-which a JNI `FindClass` gets whenever it runs on a native thread that was not
-started by Java — and Dioxus effects run on exactly such a thread. The class is
-in the APK; nothing can find it from there.
-
-Resolving it needs the app's own class loader: either cache the class on the
-Android main thread before any effect can reach it, or hold the loader from the
-Activity and load by name through it. Until one of those is in place, keep the
-plugin out of the render path.
+The Android implementation resolves its Kotlin bridge through the Activity's
+application class loader. This matters because Dioxus effects run on a native
+thread, where JNI's default `FindClass` otherwise sees only the system loader.
