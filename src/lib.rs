@@ -276,6 +276,11 @@ mod tests {
         assert!(rust.contains("set_orientation"));
         assert!(rust.contains("set_playback_active"));
         assert!(kotlin.contains("enterPictureInPictureMode"));
+        assert!(kotlin.contains("setActions(pipActions())"));
+        assert!(kotlin.contains("COMMAND_REWIND"));
+        assert!(kotlin.contains("COMMAND_FORWARD"));
+        assert!(kotlin.contains("dataset.androidPip"));
+        assert!(!kotlin.contains("setSourceRectHint"));
         assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));
         assert!(kotlin.contains("--android-status-bar-inset"));
         assert!(service.contains("startForeground"));

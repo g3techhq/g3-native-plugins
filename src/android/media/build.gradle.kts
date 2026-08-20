@@ -31,3 +31,9 @@ android {
 tasks.withType<AbstractArchiveTask>().configureEach {
     archiveBaseName.set("dx-native-media-plugin")
 }
+
+dependencies {
+    // Dioxus' host Activity already provides androidx.activity. Compile
+    // against its PiP-mode listener without bundling a second copy.
+    compileOnly("androidx.activity:activity-ktx:1.9.0")
+}
