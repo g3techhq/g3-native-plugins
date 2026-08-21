@@ -9,7 +9,7 @@ documentation = "https://docs.rs/dx-native-plugins"
 license = "MIT OR Apache-2.0"
 keywords = ["dioxus", "mobile", "plugins", "ios", "android"]
 categories = ["api-bindings", "gui", "wasm"]
-include = ["Cargo.toml", "README.md", "src/**"]
+include = ["Cargo.toml", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "src/**"]
 
 [lib]
 name = "dx_native_plugins"

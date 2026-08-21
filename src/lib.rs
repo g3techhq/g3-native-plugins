@@ -1,5 +1,18 @@
+//! Dioxus wrappers around native platform capabilities: clipboard and share
+//! sheets, Apple and Google sign-in, opening external URLs, hardware back
+//! button handling, and background media playback - plus helpers for the
+//! deep-link metadata files iOS and Android expect a server to host.
+//!
+//! Every plugin sits behind a feature flag, so an app compiles in only what
+//! it uses. Platform coverage is not uniform; see the support matrix in the
+//! README. Where a plugin has no implementation for the current target it
+//! compiles to an inert no-op rather than failing to build, which keeps the
+//! same call sites working on web, desktop, and mobile.
 #![allow(non_snake_case)]
+#![warn(missing_docs)]
 
+/// Builders for the `apple-app-site-association` and `assetlinks.json` files
+/// that make universal links and App Links resolve to the app.
 pub mod deep_links;
 
 cfg_if::cfg_if! {

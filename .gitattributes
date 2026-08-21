@@ -1,0 +1,33 @@
+# Normalize to LF in the repository regardless of the checkout platform, so a
+# Windows working copy and a Linux CI runner agree on file contents.
+* text=auto eol=lf
+
+# Windows-only scripts need CRLF to run.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets: never transform, and don't try to diff them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.gif binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.aab binary
+*.apk binary
+*.bin binary
+*.tar binary
+*.keystore binary
+*.jks binary
+
+# Generated; collapse in diffs and mark as generated on GitHub.
+Cargo.lock linguist-generated=true
+package-lock.json linguist-generated=true
