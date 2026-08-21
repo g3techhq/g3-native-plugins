@@ -16,8 +16,12 @@ unsafe extern "Swift" {
     pub fn getAuthState(this: &AuthPlugin) -> Option<String>;
 }
 
+/// The outcome of a native sign-in attempt.
 #[derive(Clone, Debug)]
 pub struct AuthResult {
+    /// The identity token returned by the platform - an Apple ID token on
+    /// iOS, a Google ID token on Android - or `None` when the user cancelled
+    /// or the flow is still pending.
     pub credential: Option<String>,
 }
 

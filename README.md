@@ -4,6 +4,23 @@ Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, externa
 
 The Cargo package is `dx-native-plugins`; the Rust crate name is `dx_native_plugins`.
 
+## Platform Support
+
+Coverage is not uniform. Where a plugin has no implementation for the target,
+the calls compile to inert no-ops rather than failing the build — so a missing
+platform shows up as nothing happening at runtime, not as a compile error.
+
+| Feature | Android | iOS / macOS | Web | Notes |
+| --- | --- | --- | --- | --- |
+| `clipboard` | yes | yes | yes | Copy plus a native share sheet on mobile. |
+| `auth` | yes | yes | no | Google Sign-In on Android, Sign in with Apple on iOS. |
+| `external-url` | yes | yes | yes | Opens the system browser. |
+| `back-button` | yes | n/a | no | iOS has no hardware back button; use an interactive swipe-back instead. |
+| `media` | yes | **not yet** | no | Background playback, lock-screen controls, and Now Playing metadata. The iOS side (AVAudioSession, MPNowPlayingInfoCenter, MPRemoteCommandCenter) is unimplemented. |
+
+`deep_links` is pure metadata generation and builds everywhere, including on
+the server.
+
 ## Install
 
 Enable only the plugins your app uses:

@@ -1,13 +1,21 @@
 use serde_json::{Value, json};
 
+/// The contents of an `apple-app-site-association` file, which iOS fetches
+/// from `https://<host>/.well-known/apple-app-site-association` to decide
+/// which URLs open in the app instead of Safari.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppleAppSiteAssociation {
+    /// The Apple Developer Team ID that prefixes the app identifier.
     pub team_id: String,
+    /// The app's bundle identifier, e.g. `com.G3Tech.GreensidePartee`.
     pub bundle_id: String,
+    /// URL paths claimed by the app. Supports Apple's wildcard syntax, so
+    /// `/games/*/join` matches any game id.
     pub paths: Vec<String>,
 }
 
 impl AppleAppSiteAssociation {
+    /// Build an association for one app and the paths it claims.
     pub fn new(
         team_id: impl Into<String>,
         bundle_id: impl Into<String>,
@@ -20,10 +28,12 @@ impl AppleAppSiteAssociation {
         }
     }
 
+    /// The fully qualified app identifier Apple expects: `<team_id>.<bundle_id>`.
     pub fn app_id(&self) -> String {
         format!("{}.{}", self.team_id, self.bundle_id)
     }
 
+    /// Render the association as the JSON body to serve at the well-known path.
     pub fn to_json(&self) -> Value {
         json!({
             "applinks": {
@@ -37,13 +47,21 @@ impl AppleAppSiteAssociation {
     }
 }
 
+/// The contents of an `assetlinks.json` file, which Android fetches from
+/// `https://<host>/.well-known/assetlinks.json` to verify an App Link and
+/// open matching URLs in the app without a disambiguation dialog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AndroidAssetLinks {
+    /// The application id of the Android app, e.g. `com.G3Tech.GreensidePartee`.
     pub package_name: String,
+    /// SHA-256 fingerprints of the signing certificates. Include both the
+    /// upload and Play-managed app-signing keys when Play App Signing is on,
+    /// or verification fails for store builds.
     pub sha256_cert_fingerprints: Vec<String>,
 }
 
 impl AndroidAssetLinks {
+    /// Build an asset-links statement for one app and its signing fingerprints.
     pub fn new(
         package_name: impl Into<String>,
         sha256_cert_fingerprints: impl IntoIterator<Item = impl Into<String>>,
@@ -57,6 +75,7 @@ impl AndroidAssetLinks {
         }
     }
 
+    /// Render the statement list as the JSON body to serve at the well-known path.
     pub fn to_json(&self) -> Value {
         json!([{
             "relation": ["delegate_permission/common.handle_all_urls"],
@@ -69,6 +88,8 @@ impl AndroidAssetLinks {
     }
 }
 
+/// Shorthand for [`AppleAppSiteAssociation::new`] followed by
+/// [`AppleAppSiteAssociation::to_json`].
 pub fn apple_app_site_association(
     team_id: impl Into<String>,
     bundle_id: impl Into<String>,
@@ -77,6 +98,8 @@ pub fn apple_app_site_association(
     AppleAppSiteAssociation::new(team_id, bundle_id, paths).to_json()
 }
 
+/// Shorthand for [`AndroidAssetLinks::new`] followed by
+/// [`AndroidAssetLinks::to_json`].
 pub fn android_asset_links(
     package_name: impl Into<String>,
     sha256_cert_fingerprints: impl IntoIterator<Item = impl Into<String>>,
@@ -84,6 +107,11 @@ pub fn android_asset_links(
     AndroidAssetLinks::new(package_name, sha256_cert_fingerprints).to_json()
 }
 
+/// Define the server route that serves the `apple-app-site-association`
+/// file, so iOS universal links resolve for the given team, bundle, and
+/// paths.
+///
+/// Expands to a `#[get]` handler; call it once in a server module.
 #[macro_export]
 macro_rules! ios_app_site_association_route {
     (
@@ -100,6 +128,10 @@ macro_rules! ios_app_site_association_route {
     };
 }
 
+/// Define the server route that serves `assetlinks.json`, so Android App
+/// Links resolve for the given package and signing fingerprints.
+///
+/// Expands to a `#[get]` handler; call it once in a server module.
 #[macro_export]
 macro_rules! android_asset_links_route {
     (
