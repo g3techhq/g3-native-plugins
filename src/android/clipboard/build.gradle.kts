@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.dioxus.dx_native_plugins.clipboard"
+    namespace = "dev.dioxus.g3_native_plugins.clipboard"
     compileSdk = 34
 
     defaultConfig {

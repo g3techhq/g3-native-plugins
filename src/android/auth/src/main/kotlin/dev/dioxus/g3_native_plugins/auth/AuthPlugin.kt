@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.auth
+package dev.dioxus.g3_native_plugins.auth
 
 import android.app.Activity
 import android.util.Log

@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.media
+package dev.dioxus.g3_native_plugins.media
 
 import android.app.Notification
 import android.app.NotificationChannel

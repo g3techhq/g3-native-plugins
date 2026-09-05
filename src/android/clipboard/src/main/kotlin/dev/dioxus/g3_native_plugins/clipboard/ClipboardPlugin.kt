@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.clipboard
+package dev.dioxus.g3_native_plugins.clipboard
 
 import android.app.Activity
 import android.content.ClipData

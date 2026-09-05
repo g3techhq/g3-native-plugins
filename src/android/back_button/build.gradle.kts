@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.dioxus.dx_native_plugins.back_button"
+    namespace = "dev.dioxus.g3_native_plugins.back_button"
     compileSdk = 34
 
     defaultConfig {

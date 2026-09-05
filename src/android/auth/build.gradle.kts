@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.dioxus.dx_native_plugins.auth"
+    namespace = "dev.dioxus.g3_native_plugins.auth"
     compileSdk = 34
 
     defaultConfig {

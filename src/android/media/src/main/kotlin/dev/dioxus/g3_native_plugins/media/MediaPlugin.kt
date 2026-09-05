@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.media
+package dev.dioxus.g3_native_plugins.media
 
 import android.app.Activity
 import android.app.Application
@@ -23,7 +23,7 @@ import androidx.activity.ComponentActivity
 class MediaPlugin(private val activity: Activity) {
     companion object {
         private const val ACTION_PIP_COMMAND =
-            "dev.dioxus.dx_native_plugins.media.PIP_COMMAND"
+            "dev.dioxus.g3_native_plugins.media.PIP_COMMAND"
         private const val EXTRA_COMMAND = "command"
         private const val COMMAND_REWIND = "rewind"
         private const val COMMAND_TOGGLE = "toggle"

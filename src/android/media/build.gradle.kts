@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.dioxus.dx_native_plugins.media"
+    namespace = "dev.dioxus.g3_native_plugins.media"
     compileSdk = 35
 
     defaultConfig {

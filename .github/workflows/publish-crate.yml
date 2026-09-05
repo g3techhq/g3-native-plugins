@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish dx-native-plugins
+    name: Publish g3-native-plugins
     runs-on: ubuntu-latest
     environment: crates-io
 

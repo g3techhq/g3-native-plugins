@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.external_url
+package dev.dioxus.g3_native_plugins.external_url
 
 import android.app.Activity
 import android.content.Intent
