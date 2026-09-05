@@ -10,51 +10,29 @@
 //! same call sites working on web, desktop, and mobile.
 #![allow(non_snake_case)]
 #![warn(missing_docs)]
-
 /// Builders for the `apple-app-site-association` and `assetlinks.json` files
 /// that make universal links and App Links resolve to the app.
 pub mod deep_links;
-
 cfg_if::cfg_if! {
-    if #[cfg(feature = "clipboard")] {
-        mod clipboard;
-        #[allow(unused_imports)]
-        pub use clipboard::*;
+    if #[cfg(feature = "clipboard")] { mod clipboard; #[allow(unused_imports)] pub use
+    clipboard::*; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "auth")] { mod auth; #[allow(unused_imports)] pub use auth::*; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "back-button")] { mod back_button; #[allow(unused_imports)] pub
+    use back_button::*; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "external-url")] { mod external_url; #[allow(unused_imports)] pub
+    use external_url::*; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "media")] { mod media; #[allow(unused_imports)] pub use media::*;
     }
 }
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "auth")] {
-        mod auth;
-        #[allow(unused_imports)]
-        pub use auth::*;
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "back-button")] {
-        mod back_button;
-        #[allow(unused_imports)]
-        pub use back_button::*;
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "external-url")] {
-        mod external_url;
-        #[allow(unused_imports)]
-        pub use external_url::*;
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "media")] {
-        mod media;
-        #[allow(unused_imports)]
-        pub use media::*;
-    }
-}
-
+use dioxus::prelude::*;
 #[cfg(all(
     any(
         feature = "auth",
@@ -71,9 +49,6 @@ cfg_if::cfg_if! {
     )
 ))]
 use dioxus_signals::Signal;
-
-use dioxus::prelude::*;
-
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -101,7 +76,6 @@ pub struct NativePlugins {
     #[cfg(feature = "media")]
     pub media: Signal<Media>,
 }
-
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -130,7 +104,6 @@ impl NativePlugins {
         }
     }
 }
-
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -142,7 +115,6 @@ impl Default for NativePlugins {
         Self::new()
     }
 }
-
 #[component]
 pub fn NativePluginsProvider(children: Element) -> Element {
     #[cfg(any(
@@ -152,10 +124,10 @@ pub fn NativePluginsProvider(children: Element) -> Element {
         target_os = "macos"
     ))]
     use_context_provider(NativePlugins::default);
-
-    rsx! { {children} }
+    rsx! {
+        {children}
+    }
 }
-
 #[cfg(test)]
 mod tests {
     fn production_source(source: &str) -> &str {
@@ -164,42 +136,39 @@ mod tests {
             .next()
             .expect("source should split before tests")
     }
-
     #[test]
     fn back_button_interception_is_opt_in() {
-        // A callback left enabled at the root of the stack traps the user in
-        // the app, so nothing may intercept until the app asks.
         let source = production_source(include_str!("back_button.rs"));
         assert!(source.contains("intercepting: false"));
         assert!(source.contains("pub fn set_intercepting"));
-        // The router's history lives in Rust, not in the WebView, so the press
-        // has to cross back over the bridge rather than call history.back().
         let kotlin = include_str!(
-            "android/back_button/src/main/kotlin/dev/dioxus/dx_native_plugins/back_button/BackButtonPlugin.kt"
+            "android/back_button/src/main/kotlin/dev/dioxus/g3_native_plugins/back_button/BackButtonPlugin.kt",
         );
-        assert!(kotlin.contains("dxnativeback"));
+        assert!(kotlin.contains("g3nativeback"));
+        assert!(kotlin.contains("cancelable: true"));
         assert!(kotlin.contains("evaluateJavascript(BACK_EVENT_SCRIPT"));
         assert!(kotlin.contains("OnBackPressedCallback(false)"));
+        assert!(kotlin.contains("fun fallThroughFromRust()"));
+        assert!(kotlin.contains("current?.isEnabled = false"));
+        assert!(source.contains("pub fn fall_through"));
+        assert!(source.contains("pub const NATIVE_BACK_EVENT"));
     }
-
     #[test]
     fn native_plugins_provider_owns_plugin_construction() {
         let source = production_source(include_str!("lib.rs"));
-
         let provider_start = source
             .find("pub fn NativePluginsProvider(children: Element) -> Element")
             .expect("provider component should be exported");
         let provider_prefix = &source[..provider_start];
-
         assert!(source.contains("pub struct NativePlugins"));
-        assert!(source.contains("pub fn NativePluginsProvider(children: Element) -> Element"));
+        assert!(source.contains("pub fn NativePluginsProvider(children: Element) -> Element"),);
         assert!(
             !provider_prefix
                 .trim_end()
-                .ends_with("target_os = \"macos\"\n))]\n#[component]")
+                .ends_with("target_os = \"macos\"\n))]\n#[component]"),
         );
         assert!(source.contains("use_context_provider(NativePlugins::default)"));
-        assert!(source.contains("rsx! { {children} }"));
+        assert!(source.contains("{children}"));
         assert!(source.contains("pub auth: Signal<Auth>"));
         assert!(source.contains("pub clipboard: Signal<Clipboard>"));
         assert!(source.contains("pub external_url: Signal<ExternalUrl>"));
@@ -211,24 +180,21 @@ mod tests {
         assert!(source.contains("impl Default for NativePlugins"));
         assert!(source.contains("Self::new()"));
     }
-
     #[test]
     fn ios_clipboard_plugin_supports_copy_and_scene_safe_share() {
         let swift = include_str!("ios/Sources/ClipboardPlugin.swift");
         let rust = include_str!("clipboard.rs");
-
         assert!(rust.contains("pub fn copy_to_clipboard(&mut self, text: String)"));
         assert!(rust.contains(
-            "pub fn copyToClipboardFromRust(this: &ClipboardPlugin, text: String) -> String;"
-        ));
-        assert!(swift.contains("public func copyToClipboardFromRust(_ text: String) -> String"));
+            "pub fn copyToClipboardFromRust(this: &ClipboardPlugin, text: String) -> String;",
+        ),);
+        assert!(swift.contains("public func copyToClipboardFromRust(_ text: String) -> String",),);
         assert!(swift.contains("UIPasteboard.general.string = text"));
         assert!(swift.contains("NSLog(\"[ClipboardPlugin]"));
         assert!(swift.contains("connectedScenes"));
         assert!(swift.contains("popover.sourceView = vc.view"));
         assert!(!swift.contains("keyWindow"));
     }
-
     #[test]
     fn ios_plugins_share_one_swift_package_for_current_dx() {
         let manifest = include_str!("ios/Package.swift");
@@ -236,7 +202,6 @@ mod tests {
         let swift_auth = include_str!("ios/Sources/AuthPlugin.swift");
         let clipboard = include_str!("clipboard.rs");
         let external_url = include_str!("external_url.rs");
-
         assert!(manifest.contains("name: \"DioxusNativePlugins\""));
         assert!(manifest.contains(".library(name: \"AuthPlugin\""));
         assert!(manifest.contains(".library(name: \"ClipboardPlugin\""));
@@ -244,9 +209,9 @@ mod tests {
         assert!(manifest.contains(".linkedFramework(\"AuthenticationServices\")"));
         assert!(auth.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(
-            auth.contains("pub fn startAppleAuthFromRust(this: &AuthPlugin) -> Option<String>;")
+            auth.contains("pub fn startAppleAuthFromRust(this: &AuthPlugin) -> Option<String>;",),
         );
-        assert!(auth.contains("pub fn getAuthState(this: &AuthPlugin) -> Option<String>;"));
+        assert!(auth.contains("pub fn getAuthState(this: &AuthPlugin) -> Option<String>;"),);
         assert!(!auth.contains("signOutFromRust"));
         assert!(swift_auth.contains("ASAuthorizationAppleIDProvider"));
         assert!(swift_auth.contains("public func getAuthState() -> String?"));
@@ -258,32 +223,31 @@ mod tests {
     fn android_auth_plugin_exposes_google_sign_in() {
         let auth = include_str!("auth.rs");
         let kotlin_auth = include_str!(
-            "android/auth/src/main/kotlin/dev/dioxus/dx_native_plugins/auth/AuthPlugin.kt"
+            "android/auth/src/main/kotlin/dev/dioxus/g3_native_plugins/auth/AuthPlugin.kt",
         );
-
         assert!(auth.contains("#[manganis::ffi(\"src/android/auth\")]"));
         assert!(auth.contains("unsafe extern \"Kotlin\""));
         assert!(
-            auth.contains("pub fn startGoogleAuthFromRust(this: &AuthPlugin) -> Option<String>;")
+            auth.contains("pub fn startGoogleAuthFromRust(this: &AuthPlugin) -> Option<String>;",),
         );
         assert!(auth.contains("pub struct AuthResult"));
         assert!(auth.contains("pub credential: Option<String>"));
-        assert!(auth.contains("pub fn start_google_auth(&mut self) -> Result<AuthResult, String>"));
+        assert!(
+            auth.contains("pub fn start_google_auth(&mut self) -> Result<AuthResult, String>",),
+        );
         assert!(kotlin_auth.contains("fun startGoogleAuthFromRust(): String?"));
         assert!(kotlin_auth.contains("GoogleIdTokenCredential.createFrom"));
     }
-
     #[test]
     fn android_media_plugin_owns_mobile_playback_capabilities() {
         let rust = include_str!("media.rs");
         let kotlin = include_str!(
-            "android/media/src/main/kotlin/dev/dioxus/dx_native_plugins/media/MediaPlugin.kt"
+            "android/media/src/main/kotlin/dev/dioxus/g3_native_plugins/media/MediaPlugin.kt",
         );
         let service = include_str!(
-            "android/media/src/main/kotlin/dev/dioxus/dx_native_plugins/media/PlaybackService.kt"
+            "android/media/src/main/kotlin/dev/dioxus/g3_native_plugins/media/PlaybackService.kt",
         );
         let manifest = include_str!("android/media/src/main/AndroidManifest.xml");
-
         assert!(rust.contains("getClassLoader"));
         assert!(rust.contains("enter_picture_in_picture"));
         assert!(rust.contains("set_orientation"));

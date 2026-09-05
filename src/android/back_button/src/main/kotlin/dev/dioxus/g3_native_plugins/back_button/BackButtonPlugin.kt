@@ -1,4 +1,4 @@
-package dev.dioxus.dx_native_plugins.back_button
+package dev.dioxus.g3_native_plugins.back_button
 
 import android.app.Activity
 import android.view.View
@@ -31,7 +31,7 @@ class BackButtonPlugin(private val activity: Activity) {
         /// Named for the crate rather than any one app, since the plugin does
         /// not know who is listening.
         const val BACK_EVENT_SCRIPT =
-            "window.dispatchEvent(new Event('dxnativeback'))"
+            "window.dispatchEvent(new Event('g3nativeback', { cancelable: true }))"
     }
 
     private var callback: OnBackPressedCallback? = null
@@ -73,6 +73,18 @@ class BackButtonPlugin(private val activity: Activity) {
         activity.runOnUiThread {
             val callback = ensureCallback() ?: return@runOnUiThread
             callback.isEnabled = intercepting
+        }
+    }
+
+    fun fallThroughFromRust() {
+        activity.runOnUiThread {
+            val owner = activity as? ComponentActivity ?: return@runOnUiThread
+            val current = callback
+            current?.isEnabled = false
+            owner.onBackPressedDispatcher.onBackPressed()
+            if (!activity.isFinishing && !activity.isDestroyed) {
+                current?.isEnabled = true
+            }
         }
     }
 }

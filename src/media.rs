@@ -3,25 +3,20 @@
 unsafe extern "Kotlin" {
     pub type MediaPlugin;
 }
-
 #[cfg(target_os = "android")]
 use jni::{
     JavaVM,
     objects::{GlobalRef, JClass, JObject, JValue},
 };
-
 #[cfg(target_os = "android")]
-const MEDIA_PLUGIN_CLASS: &str = "dev.dioxus.dx_native_plugins.media.MediaPlugin";
-
+const MEDIA_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.media.MediaPlugin";
 #[cfg(target_os = "android")]
 pub struct Media {
     plugin: Option<GlobalRef>,
     vm: Option<JavaVM>,
 }
-
 #[cfg(any(target_arch = "wasm32", target_os = "ios", target_os = "macos"))]
 pub struct Media;
-
 #[cfg(target_os = "android")]
 impl Media {
     pub(crate) fn new() -> Self {
@@ -30,7 +25,6 @@ impl Media {
             vm: None,
         }
     }
-
     fn get_plugin(&mut self) -> Result<GlobalRef, String> {
         if self.plugin.is_none() {
             let android = ndk_context::android_context();
@@ -79,7 +73,6 @@ impl Media {
         }
         Ok(self.plugin.as_ref().unwrap().clone())
     }
-
     fn env(&self) -> Result<jni::JNIEnv<'_>, String> {
         let vm = self
             .vm
@@ -88,7 +81,6 @@ impl Media {
         vm.attach_current_thread_permanently()
             .map_err(|error| format!("Failed to attach media plugin thread: {error}"))
     }
-
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -96,7 +88,6 @@ impl Media {
             .map_err(|error| format!("Failed to prepare media plugin: {error}"))?;
         Ok(())
     }
-
     pub fn enter_picture_in_picture(&mut self, width: i32, height: i32) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -109,7 +100,6 @@ impl Media {
         .map_err(|error| format!("Failed to enter picture-in-picture: {error}"))?;
         Ok(())
     }
-
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -126,7 +116,6 @@ impl Media {
         .map_err(|error| format!("Failed to set orientation: {error}"))?;
         Ok(())
     }
-
     pub fn set_playback_active(
         &mut self,
         active: bool,
@@ -148,25 +137,20 @@ impl Media {
         Ok(())
     }
 }
-
 #[cfg(any(target_arch = "wasm32", target_os = "ios", target_os = "macos"))]
 impl Media {
     pub(crate) fn new() -> Self {
         Self
     }
-
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
-
     pub fn enter_picture_in_picture(&mut self, _width: i32, _height: i32) -> Result<(), String> {
         Ok(())
     }
-
     pub fn set_orientation(&mut self, _orientation: impl Into<String>) -> Result<(), String> {
         Ok(())
     }
-
     pub fn set_playback_active(
         &mut self,
         _active: bool,

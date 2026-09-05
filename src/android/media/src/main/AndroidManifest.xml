@@ -7,7 +7,7 @@
             android:name="dev.dioxus.main.MainActivity"
             android:supportsPictureInPicture="true" />
         <service
-            android:name="dev.dioxus.dx_native_plugins.media.PlaybackService"
+            android:name="dev.dioxus.g3_native_plugins.media.PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
     </application>

@@ -1,1 +1,1 @@
--keep class dev.dioxus.dx_native_plugins.media.** { *; }
+-keep class dev.dioxus.g3_native_plugins.media.** { *; }

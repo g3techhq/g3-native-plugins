@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.dioxus.dx_native_plugins.external_url"
+    namespace = "dev.dioxus.g3_native_plugins.external_url"
     compileSdk = 34
 
     defaultConfig {
