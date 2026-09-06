@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-06
+
+Initial release.
+
 - Standardized Android system Back as the cancelable `g3nativeback` DOM event
   so route libraries and higher-priority UI layers can share one event
   contract without app-specific bridge code.
@@ -14,11 +18,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added one-press Android fallthrough so a router integration can preserve the
   operating system's normal Back behavior if transient UI and route history
   both decline an intercepted request.
-
-## [0.1.0] - 2026-08-20
-
-Initial release.
-
 - Feature-gated native plugins: `clipboard` (copy and share sheet), `auth`
   (Sign in with Apple, Google Sign-In), `external-url`, `back-button`, and
   `media` (background playback).
