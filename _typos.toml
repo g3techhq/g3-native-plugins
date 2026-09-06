@@ -1,0 +1,16 @@
+[files]
+extend-exclude = [
+    "target/**",
+    "node_modules/**",
+    "playwright-report/**",
+    "test-results/**",
+    "assets/tailwind.css",
+    "info_site/tailwind.css",
+]
+
+[default.extend-words]
+dioxus = "dioxus"
+partee = "partee"
+surreal = "surreal"
+surrealdb = "surrealdb"
+tourney = "tourney"
