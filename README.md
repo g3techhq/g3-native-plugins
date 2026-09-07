@@ -1,5 +1,10 @@
 # g3-native-plugins
 
+[![CI](https://github.com/g3techhq/g3-native-plugins/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g3techhq/g3-native-plugins/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/g3-native-plugins.svg)](https://crates.io/crates/g3-native-plugins)
+[![docs.rs](https://docs.rs/g3-native-plugins/badge.svg)](https://docs.rs/g3-native-plugins)
+[![License](https://img.shields.io/crates/l/g3-native-plugins.svg)](#license)
+
 Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, external URLs, and deep-link metadata helpers.
 
 The Cargo package is `g3-native-plugins`; the Rust crate name is `g3_native_plugins`.
@@ -137,3 +142,7 @@ inert — callers need no `cfg` of their own.
 The Android implementation resolves its Kotlin bridge through the Activity's
 application class loader. This matters because Dioxus effects run on a native
 thread, where JNI's default `FindClass` otherwise sees only the system loader.
+
+## License
+
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.
