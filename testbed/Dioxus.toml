@@ -1,0 +1,40 @@
+[application]
+name = "g3-plugins-testbed"
+
+[bundle]
+identifier = "dev.dioxus.g3nativeplugins.testbed"
+publisher = "G3 Tech"
+
+# Every permission the plugins here can ask for. The CLI turns these into
+# AndroidManifest entries and Info.plist usage strings; without them the OS
+# refuses before any prompt is shown.
+[permissions]
+location = { precision = "fine", description = "Test the geolocation plugin" }
+camera = { description = "Test the camera permission plugin" }
+microphone = { description = "Test the microphone permission plugin" }
+
+# Required for audio getUserMedia, and easy to miss. wry's WebChromeClient asks
+# Android for MODIFY_AUDIO_SETTINGS alongside RECORD_AUDIO when a page requests
+# audio capture. Requesting a permission the manifest does not declare is denied
+# instantly, and wry then denies the whole request — so without this line
+# getUserMedia fails with NotAllowedError even though RECORD_AUDIO is granted.
+[android.permissions]
+"android.permission.MODIFY_AUDIO_SETTINGS" = { description = "Audio capture through getUserMedia" }
+
+# Exercised with:
+#   adb shell am start -a android.intent.action.VIEW -d "g3testbed://open/hello"
+[deep_links]
+schemes = ["g3testbed"]
+hosts = ["g3-testbed.example.com"]
+paths = ["/open/*"]
+
+[background]
+modes = ["audio"]
+
+[android]
+min_sdk = 24
+target_sdk = 34
+foreground_service_types = ["mediaPlayback"]
+
+[ios]
+deployment_target = "15.0"
