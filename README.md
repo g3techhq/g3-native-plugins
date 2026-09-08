@@ -38,7 +38,7 @@ Enable only the plugins your app uses:
 
 ```toml
 [dependencies]
-g3-native-plugins = { version = "0.1", features = ["clipboard", "auth", "external-url"] }
+g3-native-plugins = { version = "0.2", features = ["clipboard", "auth", "external-url"] }
 ```
 
 ## Provide Plugins
