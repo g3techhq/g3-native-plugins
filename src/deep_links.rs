@@ -1,4 +1,161 @@
 use serde_json::{Value, json};
+/// Declared for its side effect: this is what tells `dx` to build and bundle
+/// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
+/// because the macro's own bindings resolve classes against the calling
+/// thread's loader and Dioxus does not call from a thread that has one.
+#[cfg(all(feature = "deep-links", target_os = "android"))]
+#[manganis::ffi("src/android/deep_links")]
+unsafe extern "Kotlin" {
+    pub type DeepLinksPlugin;
+}
+#[cfg(all(feature = "deep-links", target_os = "android"))]
+const DEEP_LINKS_CLASS: &str = "dev.dioxus.g3_native_plugins.deep_links.DeepLinksPlugin";
+#[cfg(all(feature = "deep-links", target_os = "android"))]
+type DeepLinksHandle = crate::android_bridge::AndroidPlugin;
+#[cfg(all(feature = "deep-links", target_os = "ios"))]
+type DeepLinksHandle = DeepLinksPlugin;
+#[cfg(all(feature = "deep-links", target_os = "ios"))]
+#[allow(missing_docs)]
+#[manganis::ffi("src/ios")]
+unsafe extern "Swift" {
+    /// Native iOS deep-link queue bridge.
+    pub type DeepLinksPlugin;
+    /// Installs the native app-delegate hooks.
+    pub fn prepareFromRust(this: &DeepLinksPlugin);
+    /// Removes and returns the oldest queued link.
+    pub fn takeLinkFromRust(this: &DeepLinksPlugin) -> Option<String>;
+}
+/// The URLs a universal link, App Link, or custom scheme opened the app with.
+///
+/// This is the receiving half of deep linking. Declaring the links is already
+/// handled elsewhere: the Dioxus CLI writes the `Info.plist` and manifest
+/// entries from `[deep_links]` in `Dioxus.toml`, and the builders in this
+/// module generate the `apple-app-site-association` and `assetlinks.json` files
+/// the two platforms fetch to verify the claim. What neither covers is the URL
+/// itself once the app is open, which is what this does.
+///
+/// Links are queued and polled rather than pushed at a listener. A link can
+/// arrive before the app has rendered anything able to receive it — a cold
+/// start is the normal case, not the edge case — and unlike a back gesture it
+/// is a value that must not be dropped. Drain it wherever routing decisions are
+/// made:
+///
+/// ```rust,ignore
+/// let mut plugins = use_context::<NativePlugins>();
+/// let navigator = use_navigator();
+///
+/// use_future(move || async move {
+///     loop {
+///         while let Ok(Some(url)) = plugins.deep_links.write().take_link() {
+///             // Route on the URL however the app wants to.
+///         }
+///         gloo_timers::future::TimeoutFuture::new(200).await;
+///     }
+/// });
+/// ```
+///
+/// [`prepare`](DeepLinks::prepare) is worth calling as early as the app can
+/// manage, because on iOS a cold-start link is read from the launch options and
+/// they are only observable before launching finishes. [`DeepLinks::new`] is
+/// public so that can happen ahead of the plugin provider, and the queue lives
+/// on the native side rather than in this struct, so a link is never stranded
+/// on an instance that has since been dropped.
+///
+/// On the web the browser hands the app its URL directly and the router already
+/// routes it, and macOS has no equivalent delivery, so both are inert and
+/// callers need no cfg of their own.
+#[cfg(all(feature = "deep-links", any(target_os = "android", target_os = "ios")))]
+pub struct DeepLinks {
+    plugin: Option<DeepLinksHandle>,
+}
+/// The inert deep-link facade: see the native [`DeepLinks`] for the contract.
+#[cfg(all(
+    feature = "deep-links",
+    any(target_arch = "wasm32", target_os = "macos")
+))]
+pub struct DeepLinks;
+#[cfg(all(feature = "deep-links", any(target_os = "android", target_os = "ios")))]
+impl DeepLinks {
+    /// Create an unprepared deep-link receiver.
+    ///
+    /// Public, unlike most plugins here, so an app can prepare the native side
+    /// before [`crate::NativePluginsProvider`] exists. The queue is shared
+    /// across instances, so an early instance and the provider's own see the
+    /// same links.
+    pub fn new() -> Self {
+        Self { plugin: None }
+    }
+    fn get_plugin(&mut self) -> Result<&DeepLinksHandle, String> {
+        if self.plugin.is_none() {
+            #[cfg(target_os = "android")]
+            let created = DeepLinksHandle::new(DEEP_LINKS_CLASS)?;
+            #[cfg(target_os = "ios")]
+            let created = DeepLinksPlugin::new()
+                .map_err(|error| format!("Failed to create DeepLinksPlugin: {error:?}"))?;
+            self.plugin = Some(created);
+        }
+        Ok(self.plugin.as_ref().unwrap())
+    }
+    /// Start collecting links.
+    ///
+    /// Call this as early as the app can. On iOS a link that started the app is
+    /// only readable from the launch options, so preparing after launch has
+    /// finished can miss a cold-start link; on Android the launch Intent stays
+    /// readable and timing does not matter. Calling it more than once is
+    /// harmless and does not re-deliver a link already queued.
+    pub fn prepare(&mut self) -> Result<(), String> {
+        let plugin = self.get_plugin()?;
+        #[cfg(target_os = "android")]
+        plugin.call_unit("prepareFromRust")?;
+        #[cfg(target_os = "ios")]
+        prepareFromRust(plugin)?;
+        Ok(())
+    }
+    /// Take the oldest link not yet handled, or `None` when none are waiting.
+    ///
+    /// Preparation happens on the platform's main thread while this is called
+    /// from a Dioxus effect thread, so a link queued at launch may need a poll
+    /// or two to appear. Drain in a loop until this returns `None`.
+    pub fn take_link(&mut self) -> Result<Option<String>, String> {
+        let plugin = self.get_plugin()?;
+        #[cfg(target_os = "android")]
+        return plugin.call_string("takeLinkFromRust");
+        #[cfg(target_os = "ios")]
+        return Ok(takeLinkFromRust(plugin)?);
+    }
+}
+#[cfg(all(
+    feature = "deep-links",
+    any(target_arch = "wasm32", target_os = "macos")
+))]
+impl DeepLinks {
+    /// Create the inert deep-link facade used where nothing delivers links.
+    pub fn new() -> Self {
+        Self
+    }
+    /// No-op: the browser routes its own URL, and macOS delivers no links here.
+    pub fn prepare(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+    /// Always `None`: nothing on these targets queues a link.
+    pub fn take_link(&mut self) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+}
+#[cfg(all(
+    feature = "deep-links",
+    any(
+        target_arch = "wasm32",
+        target_os = "android",
+        target_os = "ios",
+        target_os = "macos"
+    )
+))]
+impl Default for DeepLinks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// The contents of an `apple-app-site-association` file, which iOS fetches
 /// from `https://<host>/.well-known/apple-app-site-association` to decide
 /// which URLs open in the app instead of Safari.

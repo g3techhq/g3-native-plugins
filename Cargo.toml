@@ -17,16 +17,17 @@ name = "g3_native_plugins"
 path = "src/lib.rs"
 
 [dependencies]
-manganis = "0.7.9"
+manganis = "=0.7.9"
 cfg-if = "1.0.0"
-dioxus = { version = "0.7.9", default-features = false, features = ["macro", "hooks"] }
-dioxus-signals = "0.7.9"
+dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "hooks"] }
+dioxus-signals = "=0.7.9"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = "0.3"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Location", "Navigator", "Window"] }
+web-sys = { version = "0.3", features = ["Location", "Navigator", "Storage", "Window"] }
 
 [target.'cfg(target_os="android")'.dependencies]
 jni = "0.21.0"
@@ -35,7 +36,12 @@ ndk-context = "0.1.1"
 [features]
 default = []
 back-button = []
+deep-links = []
 clipboard = []
 auth = []
+camera-microphone = []
 external-url = []
+geolocation = []
+in-app-purchases = []
 media = []
+storage = []
