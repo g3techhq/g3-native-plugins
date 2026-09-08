@@ -22,10 +22,10 @@ unsafe extern "Swift" {
     pub fn prepareFromRust(this: &InAppPurchasesPlugin);
     pub fn startProductsRequestFromRust(this: &InAppPurchasesPlugin, idsJson: String);
     pub fn takeProductsFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
-    pub fn startPurchaseFromRust(this: &InAppPurchasesPlugin, productId: String, offerId: String);
+    pub fn startPurchaseFromRust(this: &InAppPurchasesPlugin, payloadJson: String);
     pub fn startRestoreFromRust(this: &InAppPurchasesPlugin);
     pub fn takeEntitlementsFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
-    pub fn finishFromRust(this: &InAppPurchasesPlugin, transactionId: String, consume: bool);
+    pub fn finishFromRust(this: &InAppPurchasesPlugin, payloadJson: String);
     pub fn getPurchaseStateFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
 }
 /// What kind of thing a product is, which decides how it is finished.
@@ -269,11 +269,14 @@ impl InAppPurchases {
             offer_id.unwrap_or_default(),
         )?;
         #[cfg(target_os = "ios")]
-        startPurchaseFromRust(
-            plugin,
-            product_id.to_string(),
-            offer_id.unwrap_or_default().to_string(),
-        )?;
+        {
+            let payload = serde_json::to_string(&serde_json::json!({
+                "productId": product_id,
+                "offerId": offer_id.unwrap_or_default(),
+            }))
+            .map_err(|error| format!("Failed to encode purchase request: {error}"))?;
+            startPurchaseFromRust(plugin, payload)?;
+        }
         Ok(())
     }
     /// Re-read what the user owns from the store.
@@ -319,7 +322,14 @@ impl InAppPurchases {
         #[cfg(target_os = "android")]
         plugin.call_unit_str_bool("finishFromRust", transaction_id, consume)?;
         #[cfg(target_os = "ios")]
-        finishFromRust(plugin, transaction_id.to_string(), consume)?;
+        {
+            let payload = serde_json::to_string(&serde_json::json!({
+                "transactionId": transaction_id,
+                "consume": consume,
+            }))
+            .map_err(|error| format!("Failed to encode finish request: {error}"))?;
+            finishFromRust(plugin, payload)?;
+        }
         Ok(())
     }
     /// Whether a purchase is on screen, for disabling a buy button.

@@ -25,6 +25,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Apple builds now compile with Dioxus 0.7.9 on both macOS and iOS. Swift
+  bridges with multiple arguments use a single JSON payload, avoiding invalid
+  Objective-C selector generation, and the direct Dioxus/Manganis dependencies
+  are pinned to the CLI's matching patch release.
+- macOS no longer tries to compile UIKit-based iOS auth and clipboard sources.
+  Auth, clipboard, external URLs, media, and back-button expose documented
+  inert facades for the desktop smoke-test build; storage continues to return
+  an explicit unsupported-platform error.
+- Public platform facades and plugin handles now satisfy strict rustdoc builds,
+  and `BackButton` implements `Default` consistently with its constructor.
+
 - Android geolocation timed out when the best-looking provider was enabled but
   silent. A provider can report itself enabled and never produce a fix — network
   location with nothing to work from, or an emulator where only GPS is fed — so

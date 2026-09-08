@@ -11,21 +11,30 @@ unsafe extern "Kotlin" {
 const AUTH_CLASS: &str = "dev.dioxus.g3_native_plugins.auth.AuthPlugin";
 #[cfg(target_os = "android")]
 type AuthHandle = crate::android_bridge::AndroidPlugin;
-#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[cfg(target_os = "ios")]
 type AuthHandle = AuthPlugin;
-#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
+#[allow(missing_docs)]
 unsafe extern "Swift" {
+    /// Native Apple authentication bridge.
     pub type AuthPlugin;
+    /// Starts Sign in with Apple without blocking the caller.
     pub fn startAppleAuthFromRust(this: &AuthPlugin) -> Option<String>;
+    /// Returns and clears the completed authentication result, if any.
     pub fn getPendingResult(this: &AuthPlugin) -> Option<String>;
+    /// Returns the current native authentication state.
     pub fn getAuthState(this: &AuthPlugin) -> Option<String>;
 }
-#[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+#[cfg(any(target_os = "android", target_os = "ios"))]
+/// Native sign-in state and operations for Android and Apple platforms.
 pub struct Auth {
     plugin: Option<AuthHandle>,
 }
-#[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+#[cfg(target_os = "macos")]
+/// An inert authentication facade for the macOS smoke-test build.
+pub struct Auth;
+#[cfg(any(target_os = "android", target_os = "ios"))]
 impl Auth {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
@@ -34,7 +43,7 @@ impl Auth {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = AuthHandle::new(AUTH_CLASS)?;
-            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            #[cfg(target_os = "ios")]
             let created = AuthPlugin::new()
                 .map_err(|error| format!("Failed to create AuthPlugin: {error:?}"))?;
             self.plugin = Some(created);
@@ -69,7 +78,7 @@ impl Auth {
         plugin.call_unit_str("startGoogleAuthFromRust", server_client_id)
     }
     /// Starts the Apple Sign-In flow (fire-and-forget, non-blocking).
-    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    #[cfg(target_os = "ios")]
     pub fn start_apple_auth(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         _ = startAppleAuthFromRust(plugin)?;
@@ -85,7 +94,7 @@ impl Auth {
         let plugin = self.get_plugin()?;
         #[cfg(target_os = "android")]
         return plugin.call_string("getPendingResult");
-        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        #[cfg(target_os = "ios")]
         return Ok(getPendingResult(plugin)?);
     }
     /// Returns true while waiting for native sign-in to complete.
@@ -95,8 +104,29 @@ impl Auth {
         };
         #[cfg(target_os = "android")]
         let state = plugin.call_string("getAuthState").ok().flatten();
-        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        #[cfg(target_os = "ios")]
         let state = getAuthState(plugin).ok().flatten();
         state.as_deref() == Some("awaiting")
+    }
+}
+#[cfg(target_os = "macos")]
+impl Auth {
+    pub(crate) fn new() -> Self {
+        Self
+    }
+
+    /// No-op Apple sign-in request for the macOS smoke-test build.
+    pub fn start_apple_auth(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Returns no result because macOS authentication is not implemented.
+    pub fn poll_auth_result(&mut self) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    /// Returns false because macOS authentication never enters a waiting state.
+    pub fn is_auth_awaiting(&mut self) -> bool {
+        false
     }
 }

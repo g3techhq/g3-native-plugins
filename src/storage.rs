@@ -18,7 +18,7 @@ type StorageHandle = StoragePlugin;
 unsafe extern "Swift" {
     pub type StoragePlugin;
     pub fn getFromRust(this: &StoragePlugin, key: String) -> Option<String>;
-    pub fn setFromRust(this: &StoragePlugin, key: String, value: String) -> Option<String>;
+    pub fn setFromRust(this: &StoragePlugin, entryJson: String) -> Option<String>;
     pub fn removeFromRust(this: &StoragePlugin, key: String) -> Option<String>;
     pub fn clearFromRust(this: &StoragePlugin) -> Option<String>;
     pub fn keysFromRust(this: &StoragePlugin) -> Option<String>;
@@ -123,7 +123,14 @@ impl KeyValueStore {
         #[cfg(target_os = "android")]
         return Self::check(plugin.call_string_str_str("setFromRust", key, value)?);
         #[cfg(target_os = "ios")]
-        return Self::check(setFromRust(plugin, key.to_string(), value.to_string())?);
+        {
+            let entry = serde_json::to_string(&serde_json::json!({
+                "key": key,
+                "value": value,
+            }))
+            .map_err(|error| format!("Failed to encode storage entry: {error}"))?;
+            Self::check(setFromRust(plugin, entry)?)
+        }
     }
     /// Delete a value. Removing a key that is not there is not an error.
     pub fn remove(&mut self, key: &str) -> Result<(), String> {

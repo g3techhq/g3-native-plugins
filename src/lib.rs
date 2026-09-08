@@ -29,6 +29,7 @@ mod android_bridge;
 /// and `assetlinks.json` files that make universal links and App Links resolve
 /// to the app, and — behind the `deep-links` feature — the plugin that receives
 /// the URL once one does.
+#[cfg_attr(all(feature = "deep-links", target_os = "ios"), allow(missing_docs))]
 pub mod deep_links;
 /// The permission states plugins here report, in one place so an app can treat
 /// a refusal the same way whatever was refused.
@@ -47,39 +48,54 @@ pub use deep_links::DeepLinks;
 #[allow(unused_imports)]
 pub use permissions::PermissionState;
 cfg_if::cfg_if! {
-    if #[cfg(feature = "clipboard")] { mod clipboard; #[allow(unused_imports)] pub use
-    clipboard::*; }
+    if #[cfg(feature = "clipboard")] { mod clipboard;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use clipboard::Clipboard; }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "auth")] { mod auth; #[allow(unused_imports)] pub use auth::*; }
+    if #[cfg(feature = "auth")] { mod auth;
+    #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use auth::Auth; }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "back-button")] { mod back_button; #[allow(unused_imports)] pub
-    use back_button::*; }
+    if #[cfg(feature = "back-button")] { mod back_button;
+    #[allow(unused_imports)] pub use back_button::NATIVE_BACK_EVENT;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use back_button::BackButton; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "camera-microphone")] { mod camera_microphone;
-    #[allow(unused_imports)] pub use camera_microphone::*; }
+    #[allow(unused_imports)] pub use camera_microphone::CapturePermissions;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use camera_microphone::CameraMicrophone; }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "external-url")] { mod external_url; #[allow(unused_imports)] pub
-    use external_url::*; }
+    if #[cfg(feature = "external-url")] { mod external_url;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use external_url::ExternalUrl; }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "geolocation")] { mod geolocation; #[allow(unused_imports)] pub
-    use geolocation::*; }
+    if #[cfg(feature = "geolocation")] { mod geolocation;
+    #[allow(unused_imports)] pub use geolocation::{Coordinates, LocationState, PermissionStatus, Position, PositionOptions};
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use geolocation::Geolocation; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "in-app-purchases")] { mod in_app_purchases;
-    #[allow(unused_imports)] pub use in_app_purchases::*; }
+    #[allow(unused_imports)] pub use in_app_purchases::{Entitlement, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use in_app_purchases::InAppPurchases; }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "media")] { mod media; #[allow(unused_imports)] pub use media::*;
+    if #[cfg(feature = "media")] { mod media;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use media::Media;
     }
 }
 cfg_if::cfg_if! {
-    if #[cfg(feature = "storage")] { mod storage; #[allow(unused_imports)] pub use
-    storage::*; }
+    if #[cfg(feature = "storage")] { mod storage;
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use storage::KeyValueStore; }
 }
 use dioxus::prelude::*;
 #[cfg(all(
@@ -110,11 +126,16 @@ use dioxus_signals::Signal;
     target_os = "macos"
 ))]
 #[derive(Clone, Copy)]
+/// Reactive handles for every enabled native plugin.
+///
+/// Construct this directly with [`NativePlugins::new`] or install it in the
+/// Dioxus context with [`NativePluginsProvider`].
 pub struct NativePlugins {
     #[cfg(all(
         feature = "auth",
         any(target_os = "android", target_os = "ios", target_os = "macos")
     ))]
+    /// Native Apple or Google authentication, depending on the target.
     pub auth: Signal<Auth>,
     /// Available on every target: the non-Android builds are inert, so callers
     /// need no cfg of their own.
@@ -125,6 +146,7 @@ pub struct NativePlugins {
     #[cfg(feature = "camera-microphone")]
     pub camera_microphone: Signal<CameraMicrophone>,
     #[cfg(feature = "clipboard")]
+    /// Clipboard copying and the platform share sheet.
     pub clipboard: Signal<Clipboard>,
     /// Available on every target: the web and macOS builds are inert, so
     /// callers need no cfg of their own.
@@ -132,8 +154,14 @@ pub struct NativePlugins {
     pub deep_links: Signal<DeepLinks>,
     #[cfg(all(
         feature = "external-url",
-        any(target_arch = "wasm32", target_os = "android", target_os = "ios")
+        any(
+            target_arch = "wasm32",
+            target_os = "android",
+            target_os = "ios",
+            target_os = "macos"
+        )
     ))]
+    /// Opens a URL outside the app on supported targets.
     pub external_url: Signal<ExternalUrl>,
     /// Available on every target: the web and macOS builds are inert, so
     /// callers need no cfg of their own.
@@ -144,6 +172,7 @@ pub struct NativePlugins {
     #[cfg(feature = "in-app-purchases")]
     pub in_app_purchases: Signal<InAppPurchases>,
     #[cfg(feature = "media")]
+    /// Background media playback, orientation, and picture-in-picture support.
     pub media: Signal<Media>,
     /// Available on every target, but unlike the others the macOS build reports
     /// an error rather than doing nothing: a store that silently discards is
@@ -158,6 +187,7 @@ pub struct NativePlugins {
     target_os = "macos"
 ))]
 impl NativePlugins {
+    /// Creates reactive handles for every plugin enabled for this target.
     pub fn new() -> Self {
         Self {
             #[cfg(all(
@@ -175,7 +205,12 @@ impl NativePlugins {
             deep_links: Signal::new(DeepLinks::new()),
             #[cfg(all(
                 feature = "external-url",
-                any(target_arch = "wasm32", target_os = "android", target_os = "ios")
+                any(
+                    target_arch = "wasm32",
+                    target_os = "android",
+                    target_os = "ios",
+                    target_os = "macos"
+                )
             ))]
             external_url: Signal::new(ExternalUrl::new()),
             #[cfg(feature = "geolocation")]
@@ -480,7 +515,7 @@ mod tests {
         let swift = include_str!("ios/Sources/MediaPlugin.swift");
         assert!(source.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(source.contains(
-            "pub fn setPlaybackActiveFromRust(this: &MediaPlugin, active: bool, title: String);",
+            "pub fn setPlaybackActiveFromRust(this: &MediaPlugin, playbackJson: String);",
         ),);
         assert!(swift.contains("AVAudioSession.sharedInstance().setCategory(.playback"));
         assert!(swift.contains("MPNowPlayingInfoCenter"));

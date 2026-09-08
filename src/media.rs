@@ -13,9 +13,9 @@ use jni::{
 unsafe extern "Swift" {
     pub type MediaPlugin;
     pub fn prepareFromRust(this: &MediaPlugin);
-    pub fn enterPictureInPictureFromRust(this: &MediaPlugin, width: i32, height: i32);
+    pub fn enterPictureInPictureFromRust(this: &MediaPlugin, dimensionsJson: String);
     pub fn setOrientationFromRust(this: &MediaPlugin, orientation: String);
-    pub fn setPlaybackActiveFromRust(this: &MediaPlugin, active: bool, title: String);
+    pub fn setPlaybackActiveFromRust(this: &MediaPlugin, playbackJson: String);
 }
 #[cfg(target_os = "android")]
 const MEDIA_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.media.MediaPlugin";
@@ -35,10 +35,12 @@ pub struct Media {
     vm: Option<JavaVM>,
 }
 #[cfg(target_os = "ios")]
+/// Native media-session support for iOS.
 pub struct Media {
     plugin: Option<MediaPlugin>,
 }
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+/// An inert media facade for targets without a native media session.
 pub struct Media;
 #[cfg(target_os = "android")]
 impl Media {
@@ -104,6 +106,7 @@ impl Media {
         vm.attach_current_thread_permanently()
             .map_err(|error| format!("Failed to attach media plugin thread: {error}"))
     }
+    /// Initializes Android media-session support.
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -111,6 +114,7 @@ impl Media {
             .map_err(|error| format!("Failed to prepare media plugin: {error}"))?;
         Ok(())
     }
+    /// Requests picture-in-picture using the supplied source dimensions.
     pub fn enter_picture_in_picture(&mut self, width: i32, height: i32) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -123,6 +127,7 @@ impl Media {
         .map_err(|error| format!("Failed to enter picture-in-picture: {error}"))?;
         Ok(())
     }
+    /// Requests a device orientation such as `portrait` or `landscape`.
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         let mut env = self.env()?;
@@ -139,6 +144,7 @@ impl Media {
         .map_err(|error| format!("Failed to set orientation: {error}"))?;
         Ok(())
     }
+    /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
         active: bool,
@@ -174,6 +180,7 @@ impl Media {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+    /// Initializes the iOS audio session and remote-command handlers.
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         prepareFromRust(plugin)?;
@@ -184,21 +191,33 @@ impl Media {
     /// track rather than from a caller-supplied aspect hint.
     pub fn enter_picture_in_picture(&mut self, width: i32, height: i32) -> Result<(), String> {
         let plugin = self.get_plugin()?;
-        enterPictureInPictureFromRust(plugin, width, height)?;
+        let dimensions = serde_json::to_string(&serde_json::json!({
+            "width": width,
+            "height": height,
+        }))
+        .map_err(|error| format!("Failed to encode picture-in-picture dimensions: {error}"))?;
+        enterPictureInPictureFromRust(plugin, dimensions)?;
         Ok(())
     }
+    /// Requests a device orientation such as `portrait` or `landscape`.
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         setOrientationFromRust(plugin, orientation.into())?;
         Ok(())
     }
+    /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
         active: bool,
         title: impl Into<String>,
     ) -> Result<(), String> {
         let plugin = self.get_plugin()?;
-        setPlaybackActiveFromRust(plugin, active, title.into())?;
+        let playback = serde_json::to_string(&serde_json::json!({
+            "active": active,
+            "title": title.into(),
+        }))
+        .map_err(|error| format!("Failed to encode playback state: {error}"))?;
+        setPlaybackActiveFromRust(plugin, playback)?;
         Ok(())
     }
 }
@@ -207,15 +226,19 @@ impl Media {
     pub(crate) fn new() -> Self {
         Self
     }
+    /// No-op preparation on targets without native media-session support.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+    /// No-op picture-in-picture request on unsupported targets.
     pub fn enter_picture_in_picture(&mut self, _width: i32, _height: i32) -> Result<(), String> {
         Ok(())
     }
+    /// No-op orientation request on unsupported targets.
     pub fn set_orientation(&mut self, _orientation: impl Into<String>) -> Result<(), String> {
         Ok(())
     }
+    /// No-op playback-state update on unsupported targets.
     pub fn set_playback_active(
         &mut self,
         _active: bool,

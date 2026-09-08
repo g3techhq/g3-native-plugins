@@ -17,10 +17,10 @@ name = "g3_native_plugins"
 path = "src/lib.rs"
 
 [dependencies]
-manganis = "0.7.9"
+manganis = "=0.7.9"
 cfg-if = "1.0.0"
-dioxus = { version = "0.7.9", default-features = false, features = ["macro", "hooks"] }
-dioxus-signals = "0.7.9"
+dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "hooks"] }
+dioxus-signals = "=0.7.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

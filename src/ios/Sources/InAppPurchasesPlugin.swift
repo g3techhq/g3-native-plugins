@@ -100,7 +100,14 @@ public class InAppPurchasesPlugin: NSObject {
     // MARK: - Purchase
 
     @objc
-    public func startPurchaseFromRust(_ productId: String, _ offerId: String) {
+    public func startPurchaseFromRust(_ payloadJson: String) {
+        guard let data = payloadJson.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let productId = payload["productId"] as? String,
+              let offerId = payload["offerId"] as? String else {
+            publishPurchaseError("The purchase request could not be decoded.")
+            return
+        }
         // offerId is accepted for a call site shared with Android and ignored:
         // StoreKit applies an introductory offer itself when the user qualifies,
         // and a promotional offer needs a server signature this cannot make.
@@ -202,7 +209,14 @@ public class InAppPurchasesPlugin: NSObject {
     }
 
     @objc
-    public func finishFromRust(_ transactionId: String, _ consume: Bool) {
+    public func finishFromRust(_ payloadJson: String) {
+        guard let data = payloadJson.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let transactionId = payload["transactionId"] as? String,
+              let consume = payload["consume"] as? Bool else {
+            publishPurchaseError("The finish request could not be decoded.")
+            return
+        }
         // consume is accepted for a call site shared with Android and ignored:
         // finishing a consumable is the same call as finishing anything else.
         Task {

@@ -15,10 +15,14 @@ type DeepLinksHandle = crate::android_bridge::AndroidPlugin;
 #[cfg(all(feature = "deep-links", target_os = "ios"))]
 type DeepLinksHandle = DeepLinksPlugin;
 #[cfg(all(feature = "deep-links", target_os = "ios"))]
+#[allow(missing_docs)]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
+    /// Native iOS deep-link queue bridge.
     pub type DeepLinksPlugin;
+    /// Installs the native app-delegate hooks.
     pub fn prepareFromRust(this: &DeepLinksPlugin);
+    /// Removes and returns the oldest queued link.
     pub fn takeLinkFromRust(this: &DeepLinksPlugin) -> Option<String>;
 }
 /// The URLs a universal link, App Link, or custom scheme opened the app with.

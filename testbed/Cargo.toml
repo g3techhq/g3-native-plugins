@@ -9,7 +9,7 @@ publish = false
 [workspace]
 
 [dependencies]
-dioxus = { version = "0.7.9", features = [] }
+dioxus = { version = "=0.7.9", features = [] }
 g3-native-plugins = { path = "..", features = [
     "auth",
     "back-button",

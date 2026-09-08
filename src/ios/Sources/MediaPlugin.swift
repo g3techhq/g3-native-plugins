@@ -64,8 +64,12 @@ public class MediaPlugin: NSObject {
     /// `allowsPictureInPictureMediaPlayback` enabled; that configuration is
     /// immutable once the WebView exists, so the plugin cannot set it.
     @objc
-    public func enterPictureInPictureFromRust(_ width: Int32, _ height: Int32) {
-        NSLog("[MediaPlugin] enterPictureInPictureFromRust \(width)x\(height), ratio taken from the track")
+    public func enterPictureInPictureFromRust(_ dimensionsJson: String) {
+        let dimensions = dimensionsJson.data(using: .utf8)
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        let width = dimensions?["width"] as? NSNumber
+        let height = dimensions?["height"] as? NSNumber
+        NSLog("[MediaPlugin] enterPictureInPictureFromRust \(width?.intValue ?? 0)x\(height?.intValue ?? 0), ratio taken from the track")
         DispatchQueue.main.async {
             let script = """
             (() => { const v = document.querySelector('\(Self.videoSelector)');
@@ -112,7 +116,14 @@ public class MediaPlugin: NSObject {
 
     /// Start or stop background playback and its lock-screen presence.
     @objc
-    public func setPlaybackActiveFromRust(_ active: Bool, _ title: String) {
+    public func setPlaybackActiveFromRust(_ playbackJson: String) {
+        guard let data = playbackJson.data(using: .utf8),
+              let playback = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let active = playback["active"] as? Bool,
+              let title = playback["title"] as? String else {
+            NSLog("[MediaPlugin] playback state could not be decoded")
+            return
+        }
         DispatchQueue.main.async {
             let wasActive = self.playbackActive
             let titleChanged = active && title != self.playbackTitle

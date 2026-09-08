@@ -57,11 +57,13 @@ pub struct BackButton {
     intercepting: bool,
 }
 #[cfg(target_os = "ios")]
+/// The iOS left-edge back-swipe bridge.
 pub struct BackButton {
     plugin: Option<BackButtonPlugin>,
     intercepting: bool,
 }
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+/// An inert back-button facade for targets without a native back gesture.
 pub struct BackButton {
     intercepting: bool,
 }
@@ -125,6 +127,7 @@ impl BackButton {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+    /// Initializes the Android bridge without enabling interception.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
@@ -172,6 +175,7 @@ impl BackButton {
             .map_err(|error| format!("Failed to pass Back to Android: {error}"))?;
         Ok(())
     }
+    /// Returns whether system-back interception is enabled.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
     }
@@ -198,6 +202,7 @@ impl BackButton {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+    /// Initializes the iOS gesture bridge without enabling interception.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
@@ -227,6 +232,7 @@ impl BackButton {
         fallThroughFromRust(plugin)?;
         Ok(())
     }
+    /// Returns whether left-edge swipe interception is enabled.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
     }
@@ -239,6 +245,7 @@ impl BackButton {
             intercepting: false,
         }
     }
+    /// No-op preparation for targets without a native back gesture.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
@@ -252,7 +259,19 @@ impl BackButton {
     pub fn fall_through(&mut self) -> Result<(), String> {
         Ok(())
     }
+    /// Returns the requested interception state.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
+    }
+}
+#[cfg(any(
+    target_arch = "wasm32",
+    target_os = "android",
+    target_os = "ios",
+    target_os = "macos"
+))]
+impl Default for BackButton {
+    fn default() -> Self {
+        Self::new()
     }
 }

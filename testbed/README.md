@@ -18,13 +18,15 @@ It is a standalone package (its own empty `[workspace]`), so `cargo test` and
 
 ```bash
 cd testbed
-dx serve --android          # or: dx build --android, then adb install
+dx serve --android          # Android emulator or device
+dx serve --ios              # booted iOS Simulator
+dx build --desktop          # macOS compilation/smoke test
 ```
 
-`dx serve` prints `ERROR dx and dioxus versions are incompatible!` when the CLI
-is 0.7.9 and Cargo has resolved dioxus to 0.7.10. It is a version comparison,
-not a build failure — the build completes and the app launches. Pin
-`dioxus = "=0.7.9"` if the noise is not wanted.
+The app and plugin's direct Dioxus and Manganis dependencies are pinned to
+0.7.9, matching the CLI and avoiding its version-mismatch warning. Native calls
+that need multiple values encode them in one JSON argument because the current
+bridge generator otherwise emits Objective-C selectors that do not compile.
 
 Everything that can be checked without a person runs on launch and reports with
 a `G3TESTBED` tag:
@@ -53,6 +55,31 @@ G3TESTBED in-app-purchases.entitlements ok []
 `storage ok` is the one line that proves a whole plugin end to end on its own:
 it writes through the Keystore, reads back, lists, and deletes, and complains if
 any step disagrees.
+
+## iOS verification
+
+The iOS Simulator build launches and runs the automatic testbed checks. Use a
+custom-scheme link to exercise deep-link delivery:
+
+```bash
+xcrun simctl openurl booted "g3testbed://open/hello"
+```
+
+The simulator can exercise the permission states, media preparation, StoreKit
+connection, auth polling, clipboard calls, external URL preparation, and the
+back-swipe bridge. Checks that open system UI still need confirmation by eye.
+
+The storage round trip intentionally requires a provisioned build. Dioxus
+0.7.9 ad-hoc signs the `dx serve --ios` simulator app without the signed
+application identifier required by Keychain, so the simulator reports
+`errSecMissingEntitlement` (`-34018`). This does not indicate that storage has
+fallen back to an insecure implementation: iOS storage still calls Keychain.
+Validate its set/get/list/remove round trip on a signed physical device.
+
+A physical device is also required for camera input, real microphone behavior,
+background audio under suspension, lock-screen controls, Sign in with Apple,
+sandbox StoreKit purchase and restore, and deployed universal links. Configure
+signing and capabilities for `dev.dioxus.g3nativeplugins.testbed` first.
 
 ## Driving the rest from adb
 
@@ -112,3 +139,5 @@ configured — camera work on iOS needs a real device.
   Extended Controls or `adb emu geo fix <lon> <lat>`.
 - **Share sheet, external URL, media playback**: these leave the app or start a
   service, so confirm them by eye or with `adb shell dumpsys`.
+- **iOS Keychain storage**: needs a provisioned build carrying the signed
+  application identifier; the Dioxus 0.7.9 simulator bundle is ad-hoc signed.

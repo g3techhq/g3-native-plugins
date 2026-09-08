@@ -67,7 +67,13 @@ public class StoragePlugin: NSObject {
     }
 
     @objc
-    public func setFromRust(_ key: String, _ value: String) -> String? {
+    public func setFromRust(_ entryJson: String) -> String? {
+        guard let data = entryJson.data(using: .utf8),
+              let entry = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let key = entry["key"] as? String,
+              let value = entry["value"] as? String else {
+            return Self.errorJson("Could not decode the keychain entry.")
+        }
         guard let data = value.data(using: .utf8) else {
             return Self.errorJson("Could not encode the value for '\(key)'.")
         }

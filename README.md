@@ -18,9 +18,9 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | Feature | Android | iOS / macOS | Web | Notes |
 | --- | --- | --- | --- | --- |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
-| `clipboard` | yes | yes | yes | Copy plus a native share sheet on mobile. |
-| `auth` | yes | yes | no | Google Sign-In on Android, Sign in with Apple on iOS. |
-| `external-url` | yes | yes | yes | Opens the system browser. |
+| `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
+| `auth` | yes | iOS only | no | Google Sign-In on Android, Sign in with Apple on iOS. macOS is inert. |
+| `external-url` | yes | iOS only | yes | Opens the system browser. macOS is inert. |
 | `geolocation` | yes | iOS only | n/a | Start-and-poll position requests and the runtime permission prompt. Web is inert on purpose: use `navigator.geolocation`. |
 | `back-button` | yes | iOS only | no | The back *event*, whatever raises it: Android's system back, an iOS left-edge swipe. |
 | `deep-links` | yes | iOS only | n/a | Receives the URL a universal link, App Link, or custom scheme opened the app with. |
@@ -79,7 +79,7 @@ let mut plugins = use_context::<NativePlugins>();
 // The web client id from your own Google Cloud project.
 plugins.auth.write().start_google_auth(GOOGLE_SERVER_CLIENT_ID)?;
 
-#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[cfg(target_os = "ios")]
 plugins.auth.write().start_apple_auth()?;
 
 // Both calls return as soon as the native account UI has been requested.
@@ -138,6 +138,14 @@ will perform operations with it but never export it. That is what
 `EncryptedSharedPreferences` does underneath; doing it directly avoids pulling
 Tink in behind a library Google no longer maintains, and this module has no
 dependencies at all.
+
+An iOS Keychain app must be signed with an application identifier supplied by
+its provisioning profile. A Dioxus 0.7.9 `dx serve --ios` simulator bundle is
+ad-hoc signed without that identifier, so Keychain calls fail with
+`errSecMissingEntitlement` (`-34018`) even though the same API is available in
+the simulator. Validate storage in a provisioned device build. Adding a
+Keychain access group to an ad-hoc simulator bundle after it is built is not a
+substitute for provisioning and can make iOS reject the app at launch.
 
 Three things to know:
 
