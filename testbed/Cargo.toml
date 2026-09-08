@@ -1,0 +1,30 @@
+[package]
+name = "g3-native-plugins-testbed"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone rather than a member of the library's package, so `cargo test` and
+# `cargo package` at the repo root neither build nor ship the test bed.
+[workspace]
+
+[dependencies]
+dioxus = { version = "0.7.9", features = [] }
+g3-native-plugins = { path = "..", features = [
+    "auth",
+    "back-button",
+    "camera-microphone",
+    "clipboard",
+    "deep-links",
+    "external-url",
+    "geolocation",
+    "in-app-purchases",
+    "media",
+    "storage",
+] }
+
+[features]
+default = ["mobile"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]

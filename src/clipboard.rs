@@ -1,10 +1,17 @@
+/// Declared for its side effect: this is what tells `dx` to build and bundle
+/// the Kotlin module. Android calls go through [`crate::android_bridge`] so
+/// they resolve the class through the app's loader on Dioxus worker threads.
 #[cfg(target_os = "android")]
 #[manganis::ffi("src/android/clipboard")]
 unsafe extern "Kotlin" {
     pub type ClipboardPlugin;
-    pub fn copyToClipboardFromRust(this: &ClipboardPlugin, text: String);
-    pub fn shareFromRust(this: &ClipboardPlugin, text: String);
 }
+#[cfg(target_os = "android")]
+const CLIPBOARD_CLASS: &str = "dev.dioxus.g3_native_plugins.clipboard.ClipboardPlugin";
+#[cfg(target_os = "android")]
+type ClipboardHandle = crate::android_bridge::AndroidPlugin;
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+type ClipboardHandle = ClipboardPlugin;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
@@ -14,7 +21,7 @@ unsafe extern "Swift" {
 }
 #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
 pub struct Clipboard {
-    plugin: Option<ClipboardPlugin>,
+    plugin: Option<ClipboardHandle>,
 }
 #[cfg(target_arch = "wasm32")]
 pub struct Clipboard;
@@ -23,12 +30,14 @@ impl Clipboard {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
     }
-    fn get_plugin(&mut self) -> Result<&ClipboardPlugin, String> {
+    fn get_plugin(&mut self) -> Result<&ClipboardHandle, String> {
         if self.plugin.is_none() {
-            self.plugin = Some(
-                ClipboardPlugin::new()
-                    .map_err(|error| format!("Failed to create ClipboardPlugin: {error:?}"))?,
-            );
+            #[cfg(target_os = "android")]
+            let created = ClipboardHandle::new(CLIPBOARD_CLASS)?;
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            let created = ClipboardPlugin::new()
+                .map_err(|error| format!("Failed to create ClipboardPlugin: {error:?}"))?;
+            self.plugin = Some(created);
         }
         Ok(self.plugin.as_ref().unwrap())
     }
@@ -36,7 +45,7 @@ impl Clipboard {
         let plugin = self.get_plugin()?;
         #[cfg(target_os = "android")]
         {
-            copyToClipboardFromRust(plugin, text)?;
+            plugin.call_unit_str("copyToClipboardFromRust", &text)?;
             return Ok(());
         }
         #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -53,7 +62,7 @@ impl Clipboard {
         let plugin = self.get_plugin()?;
         #[cfg(target_os = "android")]
         {
-            shareFromRust(plugin, text)?;
+            plugin.call_unit_str("shareFromRust", &text)?;
             return Ok(());
         }
         #[cfg(any(target_os = "ios", target_os = "macos"))]

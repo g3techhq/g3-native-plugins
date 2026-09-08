@@ -1,6 +1,7 @@
 [files]
 extend-exclude = [
     "target/**",
+    "**/target/**",
     "node_modules/**",
     "playwright-report/**",
     "test-results/**",
