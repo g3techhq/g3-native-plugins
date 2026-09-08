@@ -1,9 +1,9 @@
 [package]
 name = "g3-native-plugins"
-version = "0.1.0"
+version = "0.2.0"
 
 edition = "2024"
-description = "Dioxus native plugin wrappers for clipboard, auth, media, external URLs, and deep-link metadata."
+description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, deep links, and platform integration."
 repository = "https://github.com/g3techhq/g3-native-plugins"
 readme = "README.md"
 documentation = "https://docs.rs/g3-native-plugins"

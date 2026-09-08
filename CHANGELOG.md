@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-08
+
 ### Changed
 
 - **Breaking.** Native auth now uses one non-blocking start-and-poll shape on
@@ -22,6 +24,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   registered there for the calling package and signing certificate. An empty
   id is now rejected up front, because Credential Manager's own failure for a
   bad one is indistinguishable from having no account signed in.
+- `back-button` and `media` are no longer documented as Android-only. iOS
+  `fall_through()` is accepted and drops the gesture: iOS has no default back
+  handler to pass it to, and an app may not exit itself.
 
 ### Fixed
 
@@ -123,12 +128,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   play/pause and ten-second skip commands through `MPRemoteCommandCenter`,
   wired into the same player element the Android picture-in-picture actions
   drive. Picture-in-picture and orientation requests are also implemented.
-
-### Changed
-
-- `back-button` and `media` are no longer documented as Android-only. iOS
-  `fall_through()` is accepted and drops the gesture: iOS has no default back
-  handler to pass it to, and an app may not exit itself.
 
 ## [0.1.0] - 2026-09-06
 
