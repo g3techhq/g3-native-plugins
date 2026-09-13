@@ -82,7 +82,7 @@ cfg_if::cfg_if! {
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "in-app-purchases")] { mod in_app_purchases;
-    #[allow(unused_imports)] pub use in_app_purchases::{Entitlement, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
+    #[allow(unused_imports)] pub use in_app_purchases::{Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
     #[allow(unused_imports)] pub use in_app_purchases::InAppPurchases; }
 }
@@ -372,6 +372,8 @@ mod tests {
         assert!(source.contains("pub fn get(&mut self, key: &str)"));
         assert!(source.contains("pub fn set(&mut self, key: &str, value: &str)"));
         assert!(source.contains("pub fn keys(&mut self)"));
+        // Public so an app can read configuration before `dioxus::launch`.
+        assert!(source.contains("pub fn new() -> Self"));
         // A store that silently discards is worse than one that says it cannot
         // help, so this plugin alone does not compile to an inert no-op.
         assert!(source.contains("Secure storage is not implemented on macOS"));
@@ -484,14 +486,23 @@ mod tests {
         let gradle = include_str!("android/in_app_purchases/build.gradle.kts");
         assert!(source.contains("pub fn start_purchase"));
         assert!(source.contains("pub fn poll_entitlements"));
+        assert!(source.contains("pub fn start_external_content_link_token"));
+        assert!(source.contains("pub fn launch_external_content_link"));
+        assert!(
+            production_source(include_str!("lib.rs"))
+                .contains("pub use in_app_purchases::{Entitlement, ExternalContentLinkToken")
+        );
         assert!(source.contains("pub fn finish(&mut self, transaction_id: &str, consume: bool)"),);
         assert!(source.contains("Subscription"));
         assert!(source.contains("pub struct SubscriptionOffer"));
         assert!(source.contains("pub will_auto_renew: bool"));
         // Play billing has no substitute, so it is a real dependency rather
         // than compileOnly like the androidx ones elsewhere.
-        assert!(gradle.contains("com.android.billingclient:billing"));
+        assert!(gradle.contains("com.android.billingclient:billing:8.2.1"));
         assert!(gradle.contains("implementation("));
+        assert!(kotlin.contains("BillingProgram.EXTERNAL_CONTENT_LINK"));
+        assert!(kotlin.contains("createBillingProgramReportingDetailsAsync"));
+        assert!(kotlin.contains("launchExternalLink"));
         // A purchase left unacknowledged for three days is refunded by Play.
         assert!(kotlin.contains("acknowledgePurchase"));
         assert!(kotlin.contains("consumeAsync"));

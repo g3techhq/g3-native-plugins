@@ -86,7 +86,12 @@ pub struct KeyValueStore;
 pub struct KeyValueStore;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl KeyValueStore {
-    pub(crate) fn new() -> Self {
+    /// Construct without touching the platform; the store opens on first use.
+    ///
+    /// Public, unlike most plugins here, so an app can read its configuration
+    /// before `dioxus::launch`, when there is no context to hold a
+    /// [`crate::NativePlugins`] yet.
+    pub fn new() -> Self {
         Self { plugin: None }
     }
     fn get_plugin(&mut self) -> Result<&StorageHandle, String> {
@@ -200,7 +205,12 @@ impl KeyValueStore {
 }
 #[cfg(target_arch = "wasm32")]
 impl KeyValueStore {
-    pub(crate) fn new() -> Self {
+    /// Construct without touching the platform; the store opens on first use.
+    ///
+    /// Public, unlike most plugins here, so an app can read its configuration
+    /// before `dioxus::launch`, when there is no context to hold a
+    /// [`crate::NativePlugins`] yet.
+    pub fn new() -> Self {
         Self
     }
     /// No-op: `localStorage` needs no setting up.
@@ -261,7 +271,12 @@ impl KeyValueStore {
 }
 #[cfg(target_os = "macos")]
 impl KeyValueStore {
-    pub(crate) fn new() -> Self {
+    /// Construct without touching the platform; the store opens on first use.
+    ///
+    /// Public, unlike most plugins here, so an app can read its configuration
+    /// before `dioxus::launch`, when there is no context to hold a
+    /// [`crate::NativePlugins`] yet.
+    pub fn new() -> Self {
         Self
     }
     fn unimplemented<T>() -> Result<T, String> {

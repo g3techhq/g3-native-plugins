@@ -45,7 +45,7 @@ dependencies {
     // the way LocationManager stands in for the fused location provider —
     // Google Play billing is only reachable through this library.
     //
-    // Version 7 is the floor Google requires of new submissions; check the
-    // current deadline before shipping, because they move it.
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    // External Content Links require Billing Library 8.2.1 or newer. Check the
+    // current submission deadline before shipping, because Google moves it.
+    implementation("com.android.billingclient:billing:8.2.1")
 }

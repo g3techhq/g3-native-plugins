@@ -1,12 +1,15 @@
 package dev.dioxus.g3_native_plugins.in_app_purchases
 
 import android.app.Activity
+import android.net.Uri
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
+import com.android.billingclient.api.BillingProgramReportingDetailsParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ConsumeParams
+import com.android.billingclient.api.LaunchExternalLinkParams
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
@@ -44,6 +47,8 @@ class InAppPurchasesPlugin(private val activity: Activity) {
     private val lock = Object()
     private var products: String? = null
     private var entitlements: String? = null
+    private var externalContentLinkToken: String? = null
+    private var externalContentLinkLaunchResult: String? = null
     private var purchasing = false
     private var connected = false
 
@@ -52,6 +57,7 @@ class InAppPurchasesPlugin(private val activity: Activity) {
 
     private val client: BillingClient = BillingClient.newBuilder(activity)
         .setListener { result, purchases -> onPurchasesUpdated(result, purchases) }
+        .enableBillingProgram(BillingClient.BillingProgram.EXTERNAL_CONTENT_LINK)
         .enablePendingPurchases(
             // A pending purchase is one the user still has to complete, by cash
             // at a counter in some markets. Play requires saying up front that
@@ -142,9 +148,9 @@ class InAppPurchasesPlugin(private val activity: Activity) {
                 },
             )
             .build()
-        client.queryProductDetailsAsync(params) { _, details ->
+        client.queryProductDetailsAsync(params) { _, result ->
             synchronized(lock) {
-                for (item in details) {
+                for (item in result.productDetailsList) {
                     known[item.productId] = item
                     into.put(Catalogue.product(item))
                 }
@@ -256,6 +262,88 @@ class InAppPurchasesPlugin(private val activity: Activity) {
                     .build()
                 client.acknowledgePurchase(params) { _ -> refreshEntitlements() }
             }
+        }
+    }
+
+    // ---- External content links ----
+
+    /**
+     * Checks eligibility and creates the single-use reporting token Google
+     * requires immediately before each external content link visit.
+     */
+    fun startExternalContentLinkTokenFromRust() {
+        synchronized(lock) { externalContentLinkToken = null }
+        connect {
+            client.isBillingProgramAvailableAsync(
+                BillingClient.BillingProgram.EXTERNAL_CONTENT_LINK,
+            ) { availability, _ ->
+                if (availability.responseCode != BillingClient.BillingResponseCode.OK) {
+                    publishExternalContentLinkTokenError(
+                        "External checkout is unavailable: ${availability.debugMessage}",
+                    )
+                    return@isBillingProgramAvailableAsync
+                }
+
+                val params = BillingProgramReportingDetailsParams.newBuilder()
+                    .setBillingProgram(BillingClient.BillingProgram.EXTERNAL_CONTENT_LINK)
+                    .build()
+                client.createBillingProgramReportingDetailsAsync(params) { result, details ->
+                    val token = details?.externalTransactionToken
+                    if (result.responseCode != BillingClient.BillingResponseCode.OK || token.isNullOrBlank()) {
+                        publishExternalContentLinkTokenError(
+                            "Could not prepare external checkout: ${result.debugMessage}",
+                        )
+                        return@createBillingProgramReportingDetailsAsync
+                    }
+                    synchronized(lock) {
+                        externalContentLinkToken = JSONObject()
+                            .put("externalTransactionToken", token)
+                            .toString()
+                    }
+                }
+            }
+        }
+    }
+
+    fun takeExternalContentLinkTokenFromRust(): String? = synchronized(lock) {
+        val taken = externalContentLinkToken
+        externalContentLinkToken = null
+        taken
+    }
+
+    /** Opens an approved digital-content URL through Google's required UI. */
+    fun launchExternalContentLinkFromRust(url: String) {
+        synchronized(lock) { externalContentLinkLaunchResult = null }
+        val params = LaunchExternalLinkParams.newBuilder()
+            .setBillingProgram(BillingClient.BillingProgram.EXTERNAL_CONTENT_LINK)
+            .setLinkUri(Uri.parse(url))
+            .setLinkType(LaunchExternalLinkParams.LinkType.LINK_TO_DIGITAL_CONTENT_OFFER)
+            .setLaunchMode(LaunchExternalLinkParams.LaunchMode.LAUNCH_IN_EXTERNAL_BROWSER_OR_APP)
+            .build()
+        activity.runOnUiThread {
+            client.launchExternalLink(activity, params) { result ->
+                synchronized(lock) {
+                    externalContentLinkLaunchResult = if (
+                        result.responseCode == BillingClient.BillingResponseCode.OK
+                    ) {
+                        JSONObject().put("launched", true).toString()
+                    } else {
+                        Catalogue.error("Could not open external checkout: ${result.debugMessage}")
+                    }
+                }
+            }
+        }
+    }
+
+    fun takeExternalContentLinkLaunchResultFromRust(): String? = synchronized(lock) {
+        val taken = externalContentLinkLaunchResult
+        externalContentLinkLaunchResult = null
+        taken
+    }
+
+    private fun publishExternalContentLinkTokenError(message: String) {
+        synchronized(lock) {
+            externalContentLinkToken = Catalogue.error(message)
         }
     }
 
