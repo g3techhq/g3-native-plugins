@@ -127,6 +127,13 @@ pub struct Entitlement {
     /// left unacknowledged for three days.
     pub needs_finishing: bool,
 }
+/// Google Play's short-lived attribution for one external content-link visit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalContentLinkToken {
+    /// Send this to the payment backend and later report it to Google Play.
+    pub external_transaction_token: String,
+}
 /// Whether a purchase is on screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PurchaseState {
@@ -332,6 +339,56 @@ impl InAppPurchases {
         }
         Ok(())
     }
+    /// Ask Google Play for a fresh token for one external checkout visit.
+    ///
+    /// Android only. The result is asynchronous and must not be cached or
+    /// reused; call this immediately before every link-out.
+    pub fn start_external_content_link_token(&mut self) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        self.get_plugin()?
+            .call_unit("startExternalContentLinkTokenFromRust")?;
+        Ok(())
+    }
+    /// Take the fresh Google Play external-transaction token once available.
+    pub fn poll_external_content_link_token(
+        &mut self,
+    ) -> Result<Option<ExternalContentLinkToken>, String> {
+        #[cfg(target_os = "android")]
+        {
+            let taken = self
+                .get_plugin()?
+                .call_string("takeExternalContentLinkTokenFromRust")?;
+            let Some(json) = taken else {
+                return Ok(None);
+            };
+            return Self::decode(&json, "external content link token");
+        }
+        #[cfg(target_os = "ios")]
+        Ok(None)
+    }
+    /// Open the checkout URL through Google Play's external-link flow.
+    pub fn launch_external_content_link(&mut self, url: &str) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        self.get_plugin()?
+            .call_unit_str("launchExternalContentLinkFromRust", url)?;
+        Ok(())
+    }
+    /// Take confirmation that Google Play launched the external URL.
+    pub fn poll_external_content_link_launch(&mut self) -> Result<Option<()>, String> {
+        #[cfg(target_os = "android")]
+        {
+            let taken = self
+                .get_plugin()?
+                .call_string("takeExternalContentLinkLaunchResultFromRust")?;
+            let Some(json) = taken else {
+                return Ok(None);
+            };
+            let _: Option<serde_json::Value> = Self::decode(&json, "external content link launch")?;
+            return Ok(Some(()));
+        }
+        #[cfg(target_os = "ios")]
+        Ok(None)
+    }
     /// Whether a purchase is on screen, for disabling a buy button.
     pub fn purchase_state(&mut self) -> PurchaseState {
         let Ok(plugin) = self.get_plugin() else {
@@ -396,6 +453,24 @@ impl InAppPurchases {
     /// No-op: there is no transaction to finish.
     pub fn finish(&mut self, _transaction_id: &str, _consume: bool) -> Result<(), String> {
         Ok(())
+    }
+    /// No-op outside Android.
+    pub fn start_external_content_link_token(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+    /// No external-link token exists outside Android.
+    pub fn poll_external_content_link_token(
+        &mut self,
+    ) -> Result<Option<ExternalContentLinkToken>, String> {
+        Ok(None)
+    }
+    /// No-op outside Android.
+    pub fn launch_external_content_link(&mut self, _url: &str) -> Result<(), String> {
+        Ok(())
+    }
+    /// No launch result exists outside Android.
+    pub fn poll_external_content_link_launch(&mut self) -> Result<Option<()>, String> {
+        Ok(None)
     }
     /// Always [`PurchaseState::Idle`].
     pub fn purchase_state(&mut self) -> PurchaseState {

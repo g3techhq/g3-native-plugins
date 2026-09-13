@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-13
+
+### Added
+
+- Android in-app purchases now expose Google Play's external content-link
+  flow: request a short-lived external transaction token, launch an approved
+  checkout URL, and poll both asynchronous results for server-side reporting.
+- `KeyValueStore::new()` is public so mobile and web apps can load persisted
+  configuration before `dioxus::launch` creates component context.
+
+### Changed
+
+- The Android billing client is updated to 8.2.1 for the Billing Program and
+  external-link APIs.
+
 ## [0.2.0] - 2026-09-08
 
 ### Changed
