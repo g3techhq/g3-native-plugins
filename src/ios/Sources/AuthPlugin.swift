@@ -1,154 +1,136 @@
 import Foundation
 import AuthenticationServices
+import CryptoKit
 import UIKit
 
 @objc(AuthPlugin)
 public class AuthPlugin: NSObject {
-
     private var coordinator: AppleSignInCoordinator?
     private var controller: ASAuthorizationController?
-    private var _pendingResult: String?
-    private var _isAwaiting: Bool = false
+    private var pendingResult: String?
+    private var isAwaiting = false
 
     @objc
-    public func startAppleAuthFromRust() -> String? {
-        NSLog("[AuthPlugin] ========== START startAppleAuthFromRust ==========")
-        NSLog("[AuthPlugin] Thread: \(Thread.isMainThread ? "main" : "background")")
-        DispatchQueue.main.async {
-            self.startAppleAuthOnMainThread()
+    public func startAppleAuthFromRust(_ requestJson: String) -> String? {
+        guard let data = requestJson.data(using: .utf8),
+              let request = try? JSONDecoder().decode(AppleAuthRequest.self, from: data),
+              !request.state.isEmpty,
+              !request.nonce.isEmpty else {
+            setPendingResult(nil)
+            return nil
         }
-        NSLog("[AuthPlugin] Returning nil (fire-and-forget)")
+
+        DispatchQueue.main.async { [weak self] in
+            self?.startAppleAuthOnMainThread(request)
+        }
         return nil
     }
 
     @objc
     public func getPendingResult() -> String? {
-        NSLog("[AuthPlugin] getPendingResult called, value: \(_pendingResult ?? "nil")")
-        return _pendingResult
+        let result = pendingResult
+        pendingResult = nil
+        return result
     }
 
     @objc
     public func getAuthState() -> String? {
-        let state = _isAwaiting ? "awaiting" : "idle"
-        NSLog("[AuthPlugin] getAuthState called, returning: \(state)")
-        return state
+        isAwaiting ? "awaiting" : "idle"
     }
 
-    // Called by AppleSignInCoordinator when auth completes
     func setPendingResult(_ result: String?) {
         DispatchQueue.main.async {
-            NSLog("[AuthPlugin] setPendingResult called with: \(result ?? "nil")")
-            self._pendingResult = result
-            NSLog("[AuthPlugin] _isAwaiting set to false")
-            self._isAwaiting = false
+            self.pendingResult = result
+            self.isAwaiting = false
             self.controller = nil
             self.coordinator = nil
         }
     }
 
-    private func startAppleAuthOnMainThread() {
-        NSLog("[AuthPlugin] startAppleAuthOnMainThread")
-        _pendingResult = nil
-        _isAwaiting = true
+    private func startAppleAuthOnMainThread(_ authRequest: AppleAuthRequest) {
+        pendingResult = nil
+        isAwaiting = true
 
         let provider = ASAuthorizationAppleIDProvider()
         let request = provider.createRequest()
         request.requestedScopes = [.fullName, .email]
+        request.state = authRequest.state
+        request.nonce = Self.sha256(authRequest.nonce)
 
         let controller = ASAuthorizationController(authorizationRequests: [request])
         let coordinator = AppleSignInCoordinator(plugin: self)
-
         self.controller = controller
         self.coordinator = coordinator
-
         controller.delegate = coordinator
         controller.presentationContextProvider = coordinator
         controller.performRequests()
     }
+
+    private static func sha256(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
 }
 
-private final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+private struct AppleAuthRequest: Decodable {
+    let state: String
+    let nonce: String
+}
+
+private final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding
+{
     private let plugin: AuthPlugin
 
     init(plugin: AuthPlugin) {
         self.plugin = plugin
-        NSLog("[AuthPlugin.Coordinator] Coordinator initialized")
     }
 
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        NSLog("[AuthPlugin.Coordinator] ========== presentationAnchor called ==========")
-        NSLog("[AuthPlugin.Coordinator] connectedScenes count: \(UIApplication.shared.connectedScenes.count)")
-
-        // Get the key window from the active window scene
         for scene in UIApplication.shared.connectedScenes {
-            NSLog("[AuthPlugin.Coordinator] Checking scene: activationState=\(scene.activationState)")
-            if let windowScene = scene as? UIWindowScene {
-                NSLog("[AuthPlugin.Coordinator] UIWindowScene found, activationState=\(windowScene.activationState.rawValue)")
-                if windowScene.activationState == .foregroundActive {
-                    NSLog("[AuthPlugin.Coordinator] Scene is foregroundActive, checking windows")
-                    NSLog("[AuthPlugin.Coordinator] WindowScene windows count: \(windowScene.windows.count)")
-                    for window in windowScene.windows {
-                        NSLog("[AuthPlugin.Coordinator] Checking window, isKeyWindow=\(window.isKeyWindow)")
-                        if window.isKeyWindow {
-                            NSLog("[AuthPlugin.Coordinator] Found key window, returning as anchor")
-                            return window
-                        }
-                    }
-                    if let w = windowScene.windows.first {
-                        NSLog("[AuthPlugin.Coordinator] No key window found, returning first window")
-                        return w
-                    }
-                } else {
-                    NSLog("[AuthPlugin.Coordinator] Scene is NOT foregroundActive, skipping")
-                }
-            } else {
-                NSLog("[AuthPlugin.Coordinator] Scene is not a UIWindowScene")
+            guard let windowScene = scene as? UIWindowScene,
+                  windowScene.activationState == .foregroundActive else {
+                continue
+            }
+            if let window = windowScene.windows.first(where: \.isKeyWindow) {
+                return window
+            }
+            if let window = windowScene.windows.first {
+                return window
             }
         }
 
-        // Fallback: try any connected scene
-        NSLog("[AuthPlugin.Coordinator] No active scene found, trying fallback")
         for scene in UIApplication.shared.connectedScenes {
-            if let windowScene = scene as? UIWindowScene {
-                for window in windowScene.windows {
-                    NSLog("[AuthPlugin.Coordinator] Fallback: found window from non-active scene")
-                    return window
-                }
+            if let window = (scene as? UIWindowScene)?.windows.first {
+                return window
             }
         }
 
-        NSLog("[AuthPlugin.Coordinator] WARNING: No valid presentation anchor found, returning empty ASPresentationAnchor")
         return ASPresentationAnchor()
     }
 
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        NSLog("[AuthPlugin.Coordinator] ========== didCompleteWithAuthorization called ==========")
-        
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            NSLog("[AuthPlugin.Coordinator] ERROR: authorization.credential is not ASAuthorizationAppleIDCredential")
-            NSLog("[AuthPlugin.Coordinator] credential type: \(type(of: authorization.credential))")
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let identityToken = String(data: tokenData, encoding: .utf8),
+              let codeData = credential.authorizationCode,
+              let authorizationCode = String(data: codeData, encoding: .utf8),
+              let state = credential.state,
+              !state.isEmpty else {
             plugin.setPendingResult(nil)
             return
         }
-        NSLog("[AuthPlugin.Coordinator] Got ASAuthorizationAppleIDCredential")
 
-        guard let tokenData = credential.identityToken,
-              let identityToken = String(data: tokenData, encoding: .utf8) else {
-            NSLog("[AuthPlugin.Coordinator] ERROR: credential has no identityToken or encoding failed")
-            NSLog("[AuthPlugin.Coordinator] identityToken present: \(credential.identityToken != nil)")
-            plugin.setPendingResult(nil)
-            return
-        }
-        NSLog("[AuthPlugin.Coordinator] identityToken received")
-
-        var payload: [String: String] = ["identity_token": identityToken]
-        NSLog("[AuthPlugin.Coordinator] Base payload created with identity_token")
+        var payload: [String: String] = [
+            "identity_token": identityToken,
+            "authorization_code": authorizationCode,
+            "state": state,
+        ]
 
         if let email = credential.email, !email.isEmpty {
             payload["email"] = email
-            NSLog("[AuthPlugin.Coordinator] Email found: \(email)")
-        } else {
-            NSLog("[AuthPlugin.Coordinator] No email in credential")
         }
 
         let name = [credential.fullName?.givenName, credential.fullName?.familyName]
@@ -157,32 +139,20 @@ private final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerD
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty {
             payload["display_name"] = name
-            NSLog("[AuthPlugin.Coordinator] Display name: \(name)")
-        } else {
-            NSLog("[AuthPlugin.Coordinator] No display name in credential")
         }
 
-        do {
-            NSLog("[AuthPlugin.Coordinator] Encoding payload to JSON")
-            let data = try JSONSerialization.data(withJSONObject: payload)
-            let json = String(data: data, encoding: .utf8)
-            NSLog("[AuthPlugin.Coordinator] JSON payload encoded")
-            plugin.setPendingResult(json)
-        } catch {
-            NSLog("[AuthPlugin.Coordinator] ERROR: JSON serialization failed: \(error)")
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else {
             plugin.setPendingResult(nil)
+            return
         }
-
-        NSLog("[AuthPlugin.Coordinator] ========== didCompleteWithAuthorization complete ==========")
+        plugin.setPendingResult(json)
     }
 
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        NSLog("[AuthPlugin.Coordinator] ========== didCompleteWithError called ==========")
-        NSLog("[AuthPlugin.Coordinator] Error domain: \((error as NSError).domain)")
-        NSLog("[AuthPlugin.Coordinator] Error code: \((error as NSError).code)")
-        NSLog("[AuthPlugin.Coordinator] Error description: \(error.localizedDescription)")
-        NSLog("[AuthPlugin.Coordinator] Error user info: \((error as NSError).userInfo)")
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
         plugin.setPendingResult(nil)
-        NSLog("[AuthPlugin.Coordinator] ========== didCompleteWithError complete ==========")
     }
 }

@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-14
+
+### Changed
+
+- **Breaking.** Sign in with Apple now requires a server-issued state and nonce, hashes the
+  nonce on iOS, returns Apple's authorization code and state with the identity
+  token, and no longer writes names, email addresses, or credential payloads to
+  the device log.
+
 ## [0.3.0] - 2026-09-13
 
 ### Added
