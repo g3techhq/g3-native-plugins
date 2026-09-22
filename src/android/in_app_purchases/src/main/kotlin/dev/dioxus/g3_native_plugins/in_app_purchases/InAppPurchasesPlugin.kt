@@ -51,6 +51,10 @@ class InAppPurchasesPlugin(private val activity: Activity) {
     private var externalContentLinkLaunchResult: String? = null
     private var purchasing = false
     private var connected = false
+    private var connecting = false
+
+    /** Work queued behind a connection that is still being set up. */
+    private val waiting = mutableListOf<Pair<() -> Unit, (String) -> Unit>>()
 
     /** Kept so a purchase can be launched against the details Play gave us. */
     private val known = mutableMapOf<String, ProductDetails>()
@@ -72,31 +76,64 @@ class InAppPurchasesPlugin(private val activity: Activity) {
         connect { }
     }
 
-    private fun connect(onReady: () -> Unit) {
-        synchronized(lock) {
-            if (connected && client.isReady) {
-                onReady()
-                return
+    /**
+     * Runs [onReady] once Play is connected, connecting first if needed.
+     *
+     * Calls that arrive while a connection is still being set up wait for it.
+     * Play refuses a second `startConnection` in the meantime ("already in the
+     * process of connecting") and never answers it, so `prepare` followed at
+     * once by a request would otherwise lose the request. [onFailure] lets a
+     * request publish to its own slot, so its poller is not left waiting.
+     */
+    private fun connect(onFailure: (String) -> Unit = {}, onReady: () -> Unit) {
+        val (ready, start) = synchronized(lock) {
+            val isReady = connected && client.isReady
+            val shouldStart = !isReady && !connecting
+            if (!isReady) {
+                waiting.add(onReady to onFailure)
+                connecting = true
             }
+            isReady to shouldStart
         }
+        if (ready) {
+            onReady()
+            return
+        }
+        if (!start) return
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
-                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                    synchronized(lock) { connected = true }
+                val ok = result.responseCode == BillingClient.BillingResponseCode.OK
+                val waiters = takeWaiters(connectedNow = ok)
+                if (ok) {
                     // Anything bought while the app was gone is waiting here.
                     refreshEntitlements()
-                    onReady()
+                    waiters.forEach { (run, _) -> run() }
                 } else {
-                    publishEntitlementsError("Could not connect to Play: ${result.debugMessage}")
+                    failWaiters(waiters, "Could not connect to Play: ${result.debugMessage}")
                 }
             }
 
             override fun onBillingServiceDisconnected() {
                 // Play reconnects on the next call rather than retrying in a
                 // loop here, which would fight the backoff it already does.
-                synchronized(lock) { connected = false }
+                // A disconnect during setup would otherwise strand the waiters
+                // and keep every later call queued behind them.
+                failWaiters(takeWaiters(connectedNow = false), "Lost the connection to Play.")
             }
         })
+    }
+
+    private fun takeWaiters(connectedNow: Boolean): List<Pair<() -> Unit, (String) -> Unit>> =
+        synchronized(lock) {
+            connected = connectedNow
+            connecting = false
+            waiting.toList().also { waiting.clear() }
+        }
+
+    private fun failWaiters(waiters: List<Pair<() -> Unit, (String) -> Unit>>, message: String) {
+        if (waiters.isEmpty()) return
+        publishEntitlementsError(message)
+        waiters.forEach { (_, onFailure) -> onFailure(message) }
     }
 
     // ---- Products ----
@@ -114,7 +151,7 @@ class InAppPurchasesPlugin(private val activity: Activity) {
             publish(JSONArray().toString(), isProducts = true)
             return
         }
-        connect {
+        connect(onFailure = { publish(Catalogue.error(it), isProducts = true) }) {
             // Which ids are subscriptions and which are one-time is not known
             // here, and Play will not say. Ask for both and keep what comes
             // back; an id of the wrong type is simply absent from that answer.
@@ -273,7 +310,7 @@ class InAppPurchasesPlugin(private val activity: Activity) {
      */
     fun startExternalContentLinkTokenFromRust() {
         synchronized(lock) { externalContentLinkToken = null }
-        connect {
+        connect(onFailure = { publishExternalContentLinkTokenError(it) }) {
             client.isBillingProgramAvailableAsync(
                 BillingClient.BillingProgram.EXTERNAL_CONTENT_LINK,
             ) { availability, _ ->

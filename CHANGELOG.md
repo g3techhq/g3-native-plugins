@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
+### Changed
+
+- **Breaking.** Sign in with Apple now requires a server-issued state and nonce, hashes the
+  nonce on iOS, returns Apple's authorization code and state with the identity
+  token, and no longer writes names, email addresses, or credential payloads to
+  the device log.
+
+### Fixed
+
+- An Android in-app purchase request made while the billing connection was
+  still being set up was lost. Play refuses a second `startConnection` while
+  one is in flight and never answers it, so a request issued right after
+  `prepare` never completed and its poller waited forever. Requests now queue
+  behind the connection in progress, and a setup failure or a disconnect
+  during setup fails the queued requests instead of stranding them.
+
 ## [0.3.0] - 2026-09-13
 
 ### Added

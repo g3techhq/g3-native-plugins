@@ -423,7 +423,7 @@ pub fn AuthCard() -> Element {
                     let started = plugins.auth.write()
                         .start_google_auth(GOOGLE_SERVER_CLIENT_ID);
                     #[cfg(any(target_os = "ios", target_os = "macos"))]
-                    let started = plugins.auth.write().start_apple_auth();
+                    let started = plugins.auth.write().start_apple_auth("test-state", "test-nonce");
                     if let Err(error) = started {
                         reporter.record("auth", Status::Fail, error);
                         return;

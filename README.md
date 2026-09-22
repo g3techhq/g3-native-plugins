@@ -38,7 +38,7 @@ Enable only the plugins your app uses:
 
 ```toml
 [dependencies]
-g3-native-plugins = { version = "0.2", features = ["clipboard", "auth", "external-url"] }
+g3-native-plugins = { version = "0.4", features = ["clipboard", "auth", "external-url"] }
 ```
 
 ## Provide Plugins
@@ -80,7 +80,7 @@ let mut plugins = use_context::<NativePlugins>();
 plugins.auth.write().start_google_auth(GOOGLE_SERVER_CLIENT_ID)?;
 
 #[cfg(target_os = "ios")]
-plugins.auth.write().start_apple_auth()?;
+plugins.auth.write().start_apple_auth(server_state, server_nonce)?;
 
 // Both calls return as soon as the native account UI has been requested.
 if let Some(credential) = plugins.auth.write().poll_auth_result()? {
@@ -93,9 +93,12 @@ if let Some(credential) = plugins.auth.write().poll_auth_result()? {
 Sign-in is asynchronous on both platforms. Call `poll_auth_result()` from your
 UI flow until a credential arrives or `is_auth_awaiting()` becomes false. A
 successful Android poll consumes the credential, so it is returned only once.
-Android yields the Google ID token directly; Apple yields JSON containing
-`identity_token` and, on the first authorization, any email and display name
-Apple supplied.
+Android yields the Google ID token directly. Apple requires a fresh state and
+nonce issued and stored by your server before every request. Its result JSON
+contains `identity_token`, `authorization_code`, returned `state`, and, on the
+first authorization, any email and display name Apple supplied. Consume the
+stored challenge once, compare state, validate the token nonce, and exchange
+the authorization code with Apple before creating a local session.
 
 `start_google_auth` takes the **web** client id from your own Google Cloud
 project — the one ending `.apps.googleusercontent.com`, not the Android client

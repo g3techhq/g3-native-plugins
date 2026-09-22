@@ -20,7 +20,7 @@ unsafe extern "Swift" {
     /// Native Apple authentication bridge.
     pub type AuthPlugin;
     /// Starts Sign in with Apple without blocking the caller.
-    pub fn startAppleAuthFromRust(this: &AuthPlugin) -> Option<String>;
+    pub fn startAppleAuthFromRust(this: &AuthPlugin, requestJson: String) -> Option<String>;
     /// Returns and clears the completed authentication result, if any.
     pub fn getPendingResult(this: &AuthPlugin) -> Option<String>;
     /// Returns the current native authentication state.
@@ -77,11 +77,15 @@ impl Auth {
         let plugin = self.get_plugin()?;
         plugin.call_unit_str("startGoogleAuthFromRust", server_client_id)
     }
-    /// Starts the Apple Sign-In flow (fire-and-forget, non-blocking).
+    /// Starts Apple Sign-In with a fresh state and nonce issued by the server.
     #[cfg(target_os = "ios")]
-    pub fn start_apple_auth(&mut self) -> Result<(), String> {
+    pub fn start_apple_auth(&mut self, state: &str, nonce: &str) -> Result<(), String> {
+        if state.trim().is_empty() || nonce.trim().is_empty() {
+            return Err("Apple sign-in requires a non-empty state and nonce".to_string());
+        }
+        let request = serde_json::json!({ "state": state, "nonce": nonce }).to_string();
         let plugin = self.get_plugin()?;
-        _ = startAppleAuthFromRust(plugin)?;
+        _ = startAppleAuthFromRust(plugin, request)?;
         Ok(())
     }
     /// Poll for the native sign-in result.
@@ -116,7 +120,7 @@ impl Auth {
     }
 
     /// No-op Apple sign-in request for the macOS smoke-test build.
-    pub fn start_apple_auth(&mut self) -> Result<(), String> {
+    pub fn start_apple_auth(&mut self, _state: &str, _nonce: &str) -> Result<(), String> {
         Ok(())
     }
 

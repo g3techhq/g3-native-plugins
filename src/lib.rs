@@ -118,6 +118,7 @@ use dioxus::prelude::*;
         target_os = "macos"
     )
 ))]
+#[allow(unused_imports)]
 use dioxus_signals::Signal;
 #[cfg(any(
     target_arch = "wasm32",
@@ -618,13 +619,18 @@ mod tests {
         assert!(manifest.contains(".linkedFramework(\"WebKit\")"));
         assert!(auth.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(
-            auth.contains("pub fn startAppleAuthFromRust(this: &AuthPlugin) -> Option<String>;",),
+            auth.contains("pub fn startAppleAuthFromRust(this: &AuthPlugin, requestJson: String) -> Option<String>;",),
         );
         assert!(auth.contains("pub fn getAuthState(this: &AuthPlugin) -> Option<String>;"),);
         assert!(!auth.contains("signOutFromRust"));
         assert!(swift_auth.contains("ASAuthorizationAppleIDProvider"));
+        assert!(swift_auth.contains("request.nonce = Self.sha256(authRequest.nonce)"));
+        assert!(swift_auth.contains("credential.authorizationCode"));
+        assert!(swift_auth.contains("\"authorization_code\""));
         assert!(swift_auth.contains("public func getAuthState() -> String?"));
         assert!(swift_auth.contains("identity_token"));
+        assert!(!swift_auth.contains("Email found:"));
+        assert!(!swift_auth.contains("Display name:"));
         assert!(clipboard.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(external_url.contains("#[manganis::ffi(\"src/ios\")]"));
     }
