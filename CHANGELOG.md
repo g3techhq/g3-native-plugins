@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-24
+
+### Added
+
+- `Media::set_system_bars_hidden` hides or restores Android's status and
+  navigation bars for fullscreen playback, which a WebView's own fullscreen
+  cannot cover. It does nothing on iOS, whose fullscreen already covers them.
+- `Media::clear_playback` removes the media session and its notification once
+  the player is gone. An inactive `set_playback_active` only pauses them, so
+  the system player and a headset can still resume playback.
+
+### Fixed
+
+- Android background playback stopped when the app left the foreground. The
+  playback service now stays in the foreground while playing, keeps its
+  notification when paused, and the media session is created against the
+  activity so the system player controls it.
+
 ## [0.4.0] - 2026-09-21
 
 ### Changed

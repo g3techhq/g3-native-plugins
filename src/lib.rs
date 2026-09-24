@@ -684,7 +684,9 @@ mod tests {
         assert!(rust.contains("getClassLoader"));
         assert!(rust.contains("enter_picture_in_picture"));
         assert!(rust.contains("set_orientation"));
+        assert!(rust.contains("set_system_bars_hidden"));
         assert!(rust.contains("set_playback_active"));
+        assert!(kotlin.contains("fun setSystemBarsHiddenFromRust(hidden: Boolean)"));
         assert!(kotlin.contains("enterPictureInPictureMode"));
         assert!(kotlin.contains("setActions(pipActions())"));
         assert!(kotlin.contains("COMMAND_REWIND"));
@@ -693,7 +695,14 @@ mod tests {
         assert!(kotlin.contains("tawnynativepictureinpicturechange"));
         assert!(kotlin.contains("tawnynativeplaybackresume"));
         assert!(kotlin.contains("Application.ActivityLifecycleCallbacks"));
-        assert!(kotlin.contains("if (!wasActive || titleChanged)"));
+        assert!(kotlin.contains("playing && !serviceForeground"));
+        assert!(rust.contains("clear_playback"));
+        assert!(kotlin.contains("fun clearPlaybackFromRust()"));
+        assert!(kotlin.contains("MediaSession(activity"));
+        assert!(kotlin.contains("setMediaSession(session.sessionToken)"));
+        assert!(kotlin.contains("OnWindowVisibilityChangeListener"));
+        assert!(service.contains("STOP_FOREGROUND_DETACH"));
+        assert!(manifest.contains("android:launchMode=\"singleTask\""));
         assert!(!kotlin.contains("setSourceRectHint"));
         assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));
         assert!(kotlin.contains("--android-status-bar-inset"));

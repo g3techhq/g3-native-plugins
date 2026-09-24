@@ -144,6 +144,20 @@ impl Media {
         .map_err(|error| format!("Failed to set orientation: {error}"))?;
         Ok(())
     }
+    /// Hides or restores the status and navigation bars, for fullscreen
+    /// playback. A WebView's own fullscreen stops at the WebView's bounds.
+    pub fn set_system_bars_hidden(&mut self, hidden: bool) -> Result<(), String> {
+        let plugin = self.get_plugin()?;
+        let mut env = self.env()?;
+        env.call_method(
+            plugin.as_obj(),
+            "setSystemBarsHiddenFromRust",
+            "(Z)V",
+            &[JValue::Bool(hidden.into())],
+        )
+        .map_err(|error| format!("Failed to update system bars: {error}"))?;
+        Ok(())
+    }
     /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
@@ -163,6 +177,16 @@ impl Media {
             &[JValue::Bool(active.into()), JValue::Object(&title)],
         )
         .map_err(|error| format!("Failed to update background playback: {error}"))?;
+        Ok(())
+    }
+    /// Removes the media session and its controls once the player is gone.
+    /// An inactive [`Media::set_playback_active`] only pauses them, so the
+    /// system player and a headset can still resume playback.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
+        let plugin = self.get_plugin()?;
+        let mut env = self.env()?;
+        env.call_method(plugin.as_obj(), "clearPlaybackFromRust", "()V", &[])
+            .map_err(|error| format!("Failed to clear background playback: {error}"))?;
         Ok(())
     }
 }
@@ -205,6 +229,10 @@ impl Media {
         setOrientationFromRust(plugin, orientation.into())?;
         Ok(())
     }
+    /// WebKit's fullscreen presentation already covers the status bar.
+    pub fn set_system_bars_hidden(&mut self, _hidden: bool) -> Result<(), String> {
+        Ok(())
+    }
     /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
@@ -219,6 +247,10 @@ impl Media {
         .map_err(|error| format!("Failed to encode playback state: {error}"))?;
         setPlaybackActiveFromRust(plugin, playback)?;
         Ok(())
+    }
+    /// iOS already releases its session on an inactive update.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
+        self.set_playback_active(false, String::new())
     }
 }
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
@@ -238,12 +270,20 @@ impl Media {
     pub fn set_orientation(&mut self, _orientation: impl Into<String>) -> Result<(), String> {
         Ok(())
     }
+    /// No-op system-bar request on unsupported targets.
+    pub fn set_system_bars_hidden(&mut self, _hidden: bool) -> Result<(), String> {
+        Ok(())
+    }
     /// No-op playback-state update on unsupported targets.
     pub fn set_playback_active(
         &mut self,
         _active: bool,
         _title: impl Into<String>,
     ) -> Result<(), String> {
+        Ok(())
+    }
+    /// No-op playback clear on unsupported targets.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
         Ok(())
     }
 }

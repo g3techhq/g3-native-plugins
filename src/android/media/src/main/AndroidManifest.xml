@@ -3,8 +3,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application>
+        <!-- singleTask: wry cannot host a second Activity in one process, and
+             a launcher tap on a task started some other way (a notification,
+             `adb am start`) otherwise creates one and aborts the app. -->
         <activity
             android:name="dev.dioxus.main.MainActivity"
+            android:launchMode="singleTask"
             android:supportsPictureInPicture="true" />
         <service
             android:name="dev.dioxus.g3_native_plugins.media.PlaybackService"
