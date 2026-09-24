@@ -17,6 +17,7 @@ import android.util.Rational
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 
@@ -278,6 +279,37 @@ class MediaPlugin(private val activity: Activity) {
                 "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
+
+    /// A WebView's `requestFullscreen()` only fills the WebView: the status and
+    /// navigation bars belong to the window, so fullscreen playback has to hide
+    /// them here. A swipe from the edge shows them transiently, as in other
+    /// video players.
+    fun setSystemBarsHiddenFromRust(hidden: Boolean) {
+        activity.runOnUiThread {
+            val window = activity.window
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val controller = window.insetsController ?: return@runOnUiThread
+                if (hidden) {
+                    controller.systemBarsBehavior =
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsets.Type.systemBars())
+                } else {
+                    controller.show(WindowInsets.Type.systemBars())
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val immersiveFlags = View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = if (hidden) {
+                    window.decorView.systemUiVisibility or immersiveFlags
+                } else {
+                    window.decorView.systemUiVisibility and immersiveFlags.inv()
+                }
             }
         }
     }

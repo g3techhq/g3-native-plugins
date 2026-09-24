@@ -144,6 +144,20 @@ impl Media {
         .map_err(|error| format!("Failed to set orientation: {error}"))?;
         Ok(())
     }
+    /// Hides or restores the status and navigation bars, for fullscreen
+    /// playback. A WebView's own fullscreen stops at the WebView's bounds.
+    pub fn set_system_bars_hidden(&mut self, hidden: bool) -> Result<(), String> {
+        let plugin = self.get_plugin()?;
+        let mut env = self.env()?;
+        env.call_method(
+            plugin.as_obj(),
+            "setSystemBarsHiddenFromRust",
+            "(Z)V",
+            &[JValue::Bool(hidden.into())],
+        )
+        .map_err(|error| format!("Failed to update system bars: {error}"))?;
+        Ok(())
+    }
     /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
@@ -205,6 +219,10 @@ impl Media {
         setOrientationFromRust(plugin, orientation.into())?;
         Ok(())
     }
+    /// WebKit's fullscreen presentation already covers the status bar.
+    pub fn set_system_bars_hidden(&mut self, _hidden: bool) -> Result<(), String> {
+        Ok(())
+    }
     /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
         &mut self,
@@ -236,6 +254,10 @@ impl Media {
     }
     /// No-op orientation request on unsupported targets.
     pub fn set_orientation(&mut self, _orientation: impl Into<String>) -> Result<(), String> {
+        Ok(())
+    }
+    /// No-op system-bar request on unsupported targets.
+    pub fn set_system_bars_hidden(&mut self, _hidden: bool) -> Result<(), String> {
         Ok(())
     }
     /// No-op playback-state update on unsupported targets.
