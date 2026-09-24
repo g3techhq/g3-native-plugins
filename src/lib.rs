@@ -695,7 +695,14 @@ mod tests {
         assert!(kotlin.contains("tawnynativepictureinpicturechange"));
         assert!(kotlin.contains("tawnynativeplaybackresume"));
         assert!(kotlin.contains("Application.ActivityLifecycleCallbacks"));
-        assert!(kotlin.contains("if (!wasActive || titleChanged)"));
+        assert!(kotlin.contains("playing && !serviceForeground"));
+        assert!(rust.contains("clear_playback"));
+        assert!(kotlin.contains("fun clearPlaybackFromRust()"));
+        assert!(kotlin.contains("MediaSession(activity"));
+        assert!(kotlin.contains("setMediaSession(session.sessionToken)"));
+        assert!(kotlin.contains("OnWindowVisibilityChangeListener"));
+        assert!(service.contains("STOP_FOREGROUND_DETACH"));
+        assert!(manifest.contains("android:launchMode=\"singleTask\""));
         assert!(!kotlin.contains("setSourceRectHint"));
         assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));
         assert!(kotlin.contains("--android-status-bar-inset"));

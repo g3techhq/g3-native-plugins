@@ -179,6 +179,16 @@ impl Media {
         .map_err(|error| format!("Failed to update background playback: {error}"))?;
         Ok(())
     }
+    /// Removes the media session and its controls once the player is gone.
+    /// An inactive [`Media::set_playback_active`] only pauses them, so the
+    /// system player and a headset can still resume playback.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
+        let plugin = self.get_plugin()?;
+        let mut env = self.env()?;
+        env.call_method(plugin.as_obj(), "clearPlaybackFromRust", "()V", &[])
+            .map_err(|error| format!("Failed to clear background playback: {error}"))?;
+        Ok(())
+    }
 }
 #[cfg(target_os = "ios")]
 impl Media {
@@ -238,6 +248,10 @@ impl Media {
         setPlaybackActiveFromRust(plugin, playback)?;
         Ok(())
     }
+    /// iOS already releases its session on an inactive update.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
+        self.set_playback_active(false, String::new())
+    }
 }
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl Media {
@@ -266,6 +280,10 @@ impl Media {
         _active: bool,
         _title: impl Into<String>,
     ) -> Result<(), String> {
+        Ok(())
+    }
+    /// No-op playback clear on unsupported targets.
+    pub fn clear_playback(&mut self) -> Result<(), String> {
         Ok(())
     }
 }
