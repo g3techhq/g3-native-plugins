@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `updater` feature: signed over-the-air updates of the files the WebView
+  loads, for iOS and Android. Update servers answer in the Tauri updater's
+  format and bundles are signed with minisign or `tauri signer`. Each bundle
+  is a signed manifest of SHA-256-checked files, gated on a runtime version so
+  it only runs on the native build it was made for, staged and installed at
+  the next launch, and rolled back automatically if that launch never calls
+  `Updater::notify_ready`. The Rust binary itself is not updatable, and the
+  documentation says why.
+- `notifications` feature: local notifications on iOS and Android, shown now
+  or scheduled once or repeating, with buttons, text replies, Android channels,
+  pending and delivered lists, and a polled queue of taps and foreground
+  deliveries. Android schedules survive reboots and app updates.
+- `push-notifications` feature: remote push through APNs on iOS and Firebase
+  Cloud Messaging on Android, with tokens, foreground and data messages, and
+  taps as polled events. Firebase is initialized from options passed at run
+  time, since a generated Dioxus Gradle project cannot run the
+  `google-services` plugin.
+
 ## [0.4.1] - 2026-09-24
 
 ### Added

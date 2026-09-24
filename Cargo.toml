@@ -3,7 +3,7 @@ name = "g3-native-plugins"
 version = "0.4.1"
 
 edition = "2024"
-description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, deep links, and platform integration."
+description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, notifications, over-the-air updates, deep links, and platform integration."
 repository = "https://github.com/g3techhq/g3-native-plugins"
 readme = "README.md"
 documentation = "https://docs.rs/g3-native-plugins"
@@ -23,6 +23,12 @@ dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "h
 dioxus-signals = "=0.7.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# The updater's verification: pure Rust with no C to cross-compile, so the
+# Android and iOS checks need nothing beyond the Rust target. minisign-verify is
+# what Tauri's updater verifies with, which keeps its signing tooling usable.
+minisign-verify = { version = "0.2.5", optional = true }
+semver = { version = "1.0", optional = true }
+sha2 = { version = "0.10", optional = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = "0.3"
@@ -44,4 +50,9 @@ external-url = []
 geolocation = []
 in-app-purchases = []
 media = []
+notifications = []
+# Remote push rides on the local plugin: the permission a push needs to be seen
+# is the notification permission, and there is one place to ask for it.
+push-notifications = ["notifications"]
 storage = []
+updater = ["dep:minisign-verify", "dep:semver", "dep:sha2"]

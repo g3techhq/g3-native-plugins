@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- singleTask: tapping a push the system displayed launches the app's
+             launcher Activity with FLAG_ACTIVITY_CLEAR_TOP, which under the
+             default launch mode would recreate the Activity wry lives in. -->
+        <activity
+            android:name="dev.dioxus.main.MainActivity"
+            android:launchMode="singleTask" />
+        <service
+            android:name="dev.dioxus.g3_native_plugins.push_notifications.PushMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
