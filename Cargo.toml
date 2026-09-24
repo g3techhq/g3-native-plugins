@@ -30,7 +30,7 @@ wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Location", "Navigator", "Storage", "Window"] }
 
 [target.'cfg(target_os="android")'.dependencies]
-jni = "0.21.0"
+jni = "0.22.4"
 ndk-context = "0.1.1"
 
 [features]
