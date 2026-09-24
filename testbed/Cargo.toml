@@ -20,7 +20,10 @@ g3-native-plugins = { path = "..", features = [
     "geolocation",
     "in-app-purchases",
     "media",
+    "notifications",
+    "push-notifications",
     "storage",
+    "updater",
 ] }
 
 [features]

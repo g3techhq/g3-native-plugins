@@ -1,8 +1,9 @@
 //! Dioxus wrappers around native platform capabilities: clipboard and share
 //! sheets, Apple and Google sign-in, opening external URLs, system back
-//! handling, background media playback, and receiving the URL a deep link
-//! opened the app with - plus helpers for the deep-link metadata files iOS
-//! and Android expect a server to host.
+//! handling, background media playback, local and push notifications,
+//! over-the-air bundle updates, and receiving the URL a deep link opened the
+//! app with - plus helpers for the deep-link metadata files iOS and Android
+//! expect a server to host.
 //!
 //! Every plugin sits behind a feature flag, so an app compiles in only what
 //! it uses. Platform coverage is not uniform; see the support matrix in the
@@ -21,7 +22,9 @@
         feature = "external-url",
         feature = "geolocation",
         feature = "in-app-purchases",
-        feature = "storage"
+        feature = "notifications",
+        feature = "storage",
+        feature = "updater"
     )
 ))]
 mod android_bridge;
@@ -93,9 +96,27 @@ cfg_if::cfg_if! {
     }
 }
 cfg_if::cfg_if! {
+    if #[cfg(feature = "notifications")] { mod notifications;
+    #[allow(unused_imports)] pub use notifications::{Action, ActionType, Channel, DeliveredNotification, Importance, Notification, NotificationEvent, PendingNotification, Schedule, ScheduleInterval, Visibility, TAP_ACTION};
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use notifications::Notifications; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "push-notifications")] { mod push_notifications;
+    #[allow(unused_imports)] pub use push_notifications::{FirebaseOptions, PushEvent, PushService, PushToken};
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use push_notifications::PushNotifications; }
+}
+cfg_if::cfg_if! {
     if #[cfg(feature = "storage")] { mod storage;
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
     #[allow(unused_imports)] pub use storage::KeyValueStore; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "updater")] { mod updater;
+    #[allow(unused_imports)] pub use updater::{bundle_content_type, DownloadProgress, Update, UpdaterConfig, UpdaterState};
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[allow(unused_imports)] pub use updater::Updater; }
 }
 use dioxus::prelude::*;
 #[cfg(all(
@@ -109,7 +130,9 @@ use dioxus::prelude::*;
         feature = "geolocation",
         feature = "in-app-purchases",
         feature = "media",
-        feature = "storage"
+        feature = "notifications",
+        feature = "storage",
+        feature = "updater"
     ),
     any(
         target_arch = "wasm32",
@@ -175,11 +198,23 @@ pub struct NativePlugins {
     #[cfg(feature = "media")]
     /// Background media playback, orientation, and picture-in-picture support.
     pub media: Signal<Media>,
+    /// Local notifications. Available on every target: the web and macOS
+    /// builds are inert, so callers need no cfg of their own.
+    #[cfg(feature = "notifications")]
+    pub notifications: Signal<Notifications>,
+    /// Remote push through APNs and FCM. Available on every target: the web
+    /// and macOS builds are inert, so callers need no cfg of their own.
+    #[cfg(feature = "push-notifications")]
+    pub push_notifications: Signal<PushNotifications>,
     /// Available on every target, but unlike the others the macOS build reports
     /// an error rather than doing nothing: a store that silently discards is
     /// worse than one that says it cannot help.
     #[cfg(feature = "storage")]
     pub storage: Signal<KeyValueStore>,
+    /// Over-the-air bundle updates. Available on every target: the web and
+    /// macOS builds are inert, so callers need no cfg of their own.
+    #[cfg(feature = "updater")]
+    pub updater: Signal<Updater>,
 }
 #[cfg(any(
     target_arch = "wasm32",
@@ -220,8 +255,14 @@ impl NativePlugins {
             in_app_purchases: Signal::new(InAppPurchases::new()),
             #[cfg(feature = "media")]
             media: Signal::new(Media::new()),
+            #[cfg(feature = "notifications")]
+            notifications: Signal::new(Notifications::new()),
+            #[cfg(feature = "push-notifications")]
+            push_notifications: Signal::new(PushNotifications::new()),
             #[cfg(feature = "storage")]
             storage: Signal::new(KeyValueStore::new()),
+            #[cfg(feature = "updater")]
+            updater: Signal::new(Updater::new()),
         }
     }
 }
@@ -342,7 +383,10 @@ mod tests {
             include_str!("external_url.rs"),
             include_str!("geolocation.rs"),
             include_str!("in_app_purchases.rs"),
+            include_str!("notifications.rs"),
+            include_str!("push_notifications.rs"),
             include_str!("storage.rs"),
+            include_str!("updater.rs"),
         ] {
             let production = production_source(source);
             let android = production
@@ -574,6 +618,12 @@ mod tests {
         assert!(source.contains("in_app_purchases: Signal::new(InAppPurchases::new())"));
         assert!(source.contains("media: Signal::new(Media::new())"));
         assert!(source.contains("storage: Signal::new(KeyValueStore::new())"));
+        assert!(source.contains("pub notifications: Signal<Notifications>"));
+        assert!(source.contains("pub push_notifications: Signal<PushNotifications>"));
+        assert!(source.contains("pub updater: Signal<Updater>"));
+        assert!(source.contains("notifications: Signal::new(Notifications::new())"));
+        assert!(source.contains("push_notifications: Signal::new(PushNotifications::new())"));
+        assert!(source.contains("updater: Signal::new(Updater::new())"));
         assert!(source.contains("impl Default for NativePlugins"));
         assert!(source.contains("Self::new()"));
     }
@@ -612,6 +662,10 @@ mod tests {
         assert!(manifest.contains(".linkedFramework(\"CoreLocation\")"));
         assert!(manifest.contains(".library(name: \"MediaPlugin\""));
         assert!(manifest.contains(".library(name: \"StoragePlugin\""));
+        assert!(manifest.contains(".library(name: \"NotificationsPlugin\""));
+        assert!(manifest.contains(".library(name: \"PushNotificationsPlugin\""));
+        assert!(manifest.contains(".library(name: \"UpdaterPlugin\""));
+        assert!(manifest.contains(".linkedFramework(\"UserNotifications\")"));
         assert!(manifest.contains(".linkedFramework(\"Security\")"));
         assert!(manifest.contains(".linkedFramework(\"AuthenticationServices\")"));
         assert!(manifest.contains(".linkedFramework(\"AVFoundation\")"));
@@ -709,6 +763,122 @@ mod tests {
         assert!(service.contains("startForeground"));
         assert!(manifest.contains("android:supportsPictureInPicture=\"true\""));
         assert!(manifest.contains("foregroundServiceType=\"mediaPlayback\""));
+    }
+    #[test]
+    fn updater_trusts_nothing_before_the_signature_and_keeps_decisions_in_rust() {
+        let source = production_source(include_str!("updater.rs"));
+        let kotlin = include_str!(
+            "android/updater/src/main/kotlin/dev/dioxus/g3_native_plugins/updater/UpdaterPlugin.kt",
+        );
+        let swift = include_str!("ios/Sources/UpdaterPlugin.swift");
+        let gradle = include_str!("android/updater/build.gradle.kts");
+        // The manifest is verified before it is parsed, and its hashes carry
+        // that guarantee to every file.
+        let verified = source
+            .find("verify_signature(&config.pubkey")
+            .expect("the manifest signature is checked");
+        let parsed = source
+            .find("let manifest = parse_manifest(&bytes)?")
+            .unwrap();
+        assert!(verified < parsed);
+        assert!(source.contains("does not match the hash in the signed manifest"));
+        assert!(source.contains("minisign_verify::PublicKey"));
+        // Installed on trial, rolled back if never confirmed.
+        assert!(source.contains("pub fn notify_ready(&mut self)"));
+        assert!(source.contains("state.trial && state.trial_launches >= 1"));
+        // Downloads happen off the Dioxus thread.
+        assert!(source.contains("std::thread::Builder::new()"));
+        // The native sides only move bytes: no hashing or verification there.
+        assert!(!kotlin.contains("MessageDigest"));
+        assert!(!swift.contains("CryptoKit"));
+        assert!(kotlin.contains("noBackupFilesDir"));
+        assert!(swift.contains("isExcludedFromBackup = true"));
+        // A half-written file never sits where a finished one belongs.
+        assert!(kotlin.contains("partial.renameTo(destination)"));
+        assert!(!gradle.contains("implementation("));
+        assert!(!kotlin.contains(" error("));
+    }
+    #[test]
+    fn notifications_survive_reboots_without_claiming_exact_alarms() {
+        let source = production_source(include_str!("notifications.rs"));
+        let plugin = include_str!(
+            "android/notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/notifications/NotificationsPlugin.kt",
+        );
+        let store = include_str!(
+            "android/notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/notifications/Store.kt",
+        );
+        let poster = include_str!(
+            "android/notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/notifications/NotificationPoster.kt",
+        );
+        let receivers = include_str!(
+            "android/notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/notifications/Receivers.kt",
+        );
+        let manifest = include_str!("android/notifications/src/main/AndroidManifest.xml");
+        let gradle = include_str!("android/notifications/build.gradle.kts");
+        let swift = include_str!("ios/Sources/NotificationsPlugin.swift");
+        let relay = include_str!("ios/Sources/NotificationCenterRelay.swift");
+        assert!(
+            source.contains(
+                "pub fn take_event(&mut self) -> Result<Option<NotificationEvent>, String>"
+            )
+        );
+        assert!(source.contains("pub fn new() -> Self"));
+        // Android: alarms re-armed after a reboot, exact only when allowed,
+        // and the restricted permission left for the app to claim.
+        assert!(manifest.contains("android.permission.POST_NOTIFICATIONS"));
+        assert!(manifest.contains("android.intent.action.BOOT_COMPLETED"));
+        assert!(
+            !manifest.contains(
+                "uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\""
+            )
+        );
+        assert!(manifest.contains("android:launchMode=\"singleTask\""));
+        assert!(store.contains("canScheduleExactAlarms()"));
+        assert!(receivers.contains("class BootReceiver"));
+        // Taps come back through both launch paths, like deep links.
+        assert!(plugin.contains("addOnNewIntentListener"));
+        assert!(plugin.contains("launchIntentConsumed = true"));
+        // PendingIntents differing only in extras collapse into one.
+        assert!(poster.contains("requestCode(notification.getInt(\"id\"), action)"));
+        // optString turns JSON null into the text "null".
+        assert!(poster.contains("stringOrNull(\"body\")"));
+        assert!(!gradle.contains("implementation("));
+        for kotlin in [plugin, store, poster, receivers] {
+            assert!(!kotlin.contains(" error("));
+        }
+        // iOS: one delegate for local and push, never displacing the host's.
+        assert!(relay.contains("UNPushNotificationTrigger"));
+        assert!(relay.contains("leaving it alone"));
+        assert!(swift.contains("UNTextInputNotificationAction"));
+        assert!(swift.contains("NotificationCenterRelay.install()"));
+    }
+    #[test]
+    fn push_keeps_firebase_out_of_local_only_apps() {
+        let source = production_source(include_str!("push_notifications.rs"));
+        let manifest = include_str!("../Cargo.toml");
+        let kotlin = include_str!(
+            "android/push_notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/push_notifications/PushNotificationsPlugin.kt",
+        );
+        let service = include_str!(
+            "android/push_notifications/src/main/kotlin/dev/dioxus/g3_native_plugins/push_notifications/PushMessagingService.kt",
+        );
+        let android_manifest =
+            include_str!("android/push_notifications/src/main/AndroidManifest.xml");
+        let gradle = include_str!("android/push_notifications/build.gradle.kts");
+        let swift = include_str!("ios/Sources/PushNotificationsPlugin.swift");
+        assert!(manifest.contains("push-notifications = [\"notifications\"]"));
+        assert!(gradle.contains("com.google.firebase:firebase-messaging"));
+        assert!(source.contains("pub fn register(&mut self, firebase: Option<&FirebaseOptions>)"));
+        // A generated Gradle project cannot run the google-services plugin,
+        // so Firebase is initialized from values passed at run time.
+        assert!(kotlin.contains("FirebaseApp.initializeApp(context, options)"));
+        assert!(android_manifest.contains("com.google.firebase.MESSAGING_EVENT"));
+        assert!(service.contains("override fun onNewToken"));
+        // iOS: APNs answers the app delegate, which Dioxus's does not
+        // implement, so the hooks are added at runtime.
+        assert!(swift.contains("class_addMethod"));
+        assert!(swift.contains("didRegisterForRemoteNotificationsWithDeviceToken"));
+        assert!(swift.contains("registerForRemoteNotifications()"));
     }
     #[test]
     fn plugin_wrapper_constructors_stay_crate_private_and_lazy() {

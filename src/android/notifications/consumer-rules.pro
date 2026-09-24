@@ -1,0 +1,1 @@
+-keep class dev.dioxus.g3_native_plugins.notifications.** { *; }

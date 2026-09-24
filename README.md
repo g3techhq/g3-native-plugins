@@ -5,7 +5,7 @@
 [![docs.rs](https://docs.rs/g3-native-plugins/badge.svg)](https://docs.rs/g3-native-plugins)
 [![License](https://img.shields.io/crates/l/g3-native-plugins.svg)](#license)
 
-Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, external URLs, and deep-link metadata helpers.
+Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, external URLs, notifications and push, over-the-air bundle updates, and deep-link metadata helpers.
 
 The Cargo package is `g3-native-plugins`; the Rust crate name is `g3_native_plugins`.
 
@@ -27,6 +27,9 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `in-app-purchases` | yes | iOS only | n/a | Products, purchases, subscriptions, and restore. Play Billing and StoreKit 2. |
 | `storage` | yes | iOS only | yes\* | Key-value storage. Keystore AES-GCM / Keychain. \*Web is `localStorage` and **not** encrypted. |
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
+| `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
+| `push-notifications` | yes | iOS only | no | Remote push: FCM on Android, APNs on iOS. Turns on `notifications`. |
+| `updater` | yes | iOS only | no | Signed over-the-air updates of the files the WebView loads, with rollback. Not of the Rust binary — see below. |
 
 The `deep_links` module's metadata builders are not feature-gated and build
 everywhere, including on the server. Only receiving a link needs the
@@ -510,6 +513,273 @@ the `Info.plist` and root view controller permit. The `enter_picture_in_picture`
 dimensions are ignored on iOS, where AVKit takes the aspect ratio from the video
 track itself; they are kept in the signature for a call site shared with
 Android.
+
+## Notifications
+
+```rust,ignore
+use g3_native_plugins::{Notification, NotificationEvent, PermissionState, Schedule};
+
+fn main() {
+    // Early: a tap that launched the app is delivered during launch, and only
+    // to a listener already in place.
+    let _ = g3_native_plugins::Notifications::new().prepare();
+    dioxus::launch(App);
+}
+
+let mut plugins = use_context::<NativePlugins>();
+
+if plugins.notifications.write().check_permissions()? != PermissionState::Granted {
+    plugins.notifications.write().request_permissions()?;
+}
+
+plugins.notifications.write().show(&Notification::new(1, "Round saved").body("18 holes, 72"))?;
+plugins.notifications.write().show(
+    &Notification::new(2, "Tee time in 30 minutes")
+        .extra("route", "/games/7")
+        .schedule(Schedule::At { at_ms: tee_time_ms - 1_800_000, allow_while_idle: true }),
+)?;
+
+// Wherever the app polls:
+while let Ok(Some(event)) = plugins.notifications.write().take_event() {
+    if let NotificationEvent::Action { action_id, notification, .. } = event {
+        // action_id is "tap" for the notification itself, else a button id.
+    }
+}
+```
+
+The counterpart of Tauri's notification plugin: permission, immediate and
+scheduled notifications (once, or every N minutes/hours/days/weeks), pending
+and delivered lists, buttons with optional text replies (`ActionType`), and
+Android channels. Taps and foreground deliveries are queued natively and
+polled, the same contract as deep links, so nothing is lost for want of a
+listener.
+
+Things each platform imposes:
+
+- **Android 13+** asks for `POST_NOTIFICATIONS` at run time, which is what
+  `request_permissions()` raises. The plugin's manifest declares it.
+- **Android 8+** takes sound and importance from the *channel*, not the
+  notification. Create channels with `create_channel` and post to them with
+  `Notification::channel`. A `default` channel is created on first use.
+- **Android scheduling** uses `AlarmManager`, re-armed after reboot and app
+  update. Alarms are exact only if the app holds `SCHEDULE_EXACT_ALARM`, which
+  this crate deliberately does not declare — Play restricts it to alarm and
+  calendar apps. Without it Android may deliver a few minutes late.
+- **Android's status-bar icon** must be a white silhouette. Name a drawable
+  with `Notification::icon`; the app icon fallback renders as a white square.
+- **iOS** refuses repeats more often than once a minute, and has no channels —
+  the channel calls do nothing there.
+- The plugin sets the host Activity's launch mode to `singleTask`, as the
+  `media` feature does, because a notification tap otherwise starts a second
+  Activity, which wry cannot host.
+
+## Push Notifications
+
+```rust,ignore
+use g3_native_plugins::{FirebaseOptions, PushEvent, PushNotifications};
+
+fn main() {
+    let _ = g3_native_plugins::Notifications::new().prepare();
+    let _ = PushNotifications::new().prepare();
+    dioxus::launch(App);
+}
+
+// From the Firebase console, or the app's google-services.json.
+let firebase = FirebaseOptions {
+    application_id: "1:1234567890:android:abc123".into(),
+    api_key: "AIza...".into(),
+    project_id: "my-project".into(),
+    sender_id: "1234567890".into(),
+};
+
+plugins.notifications.write().request_permissions()?;
+plugins.push_notifications.write().register(Some(&firebase))?;
+
+while let Ok(Some(event)) = plugins.push_notifications.write().take_event() {
+    match event {
+        PushEvent::Token(token) => { /* send token.service + token.token to your server */ }
+        PushEvent::Message { data, title, body } => { /* arrived in the foreground, or data-only */ }
+        PushEvent::Opened { data, .. } => { /* the user tapped a push */ }
+        PushEvent::RegistrationFailed(error) => { /* usually a missing entitlement */ }
+    }
+}
+```
+
+Remote push through Firebase Cloud Messaging on Android and APNs on iOS. The
+token is tagged with the service it belongs to, so the server knows which API
+to send through.
+
+- **Android** needs a Firebase project with the app registered. Firebase is
+  normally configured by the `google-services` Gradle plugin, which a
+  generated Dioxus Gradle project cannot run, so the four values are passed to
+  `register()` and Firebase is initialized from them at run time. The
+  `firebase-messaging` dependency lives in its own Gradle module, which is why
+  push is a separate feature: an app with only local notifications does not
+  carry Firebase.
+- **iOS** needs the Push Notifications capability: an `aps-environment`
+  entitlement from a provisioning profile that has push enabled, plus the
+  `remote-notification` background mode for data-only pushes. Without the
+  entitlement, APNs refuses and the refusal arrives as `RegistrationFailed`.
+  The token callbacks are added to the app delegate at run time, the same
+  technique as deep links, and only where the delegate has none of its own.
+- **Neither platform displays a push that arrives while the app is in the
+  foreground** — Android never does, and iOS is told not to so the two match.
+  It arrives as `PushEvent::Message`; show it with `Notifications::show` if it
+  should be seen.
+- Seeing a push needs the notification permission; receiving a data-only push
+  does not.
+
+## Over-the-Air Updates
+
+The Tauri updater's model — signed releases from an update server, checked
+against a public key compiled into the app — applied to what a mobile store
+permits.
+
+### What can and cannot be updated
+
+**The Rust side of a Dioxus app cannot be updated over the air, by this or any
+updater.** It is native machine code signed as part of the app. iOS will not
+execute a native library that was not signed with the app, and both stores'
+rules forbid an app replacing its own native code outside review. React
+Native's JS bundle is different in kind, not degree: it is interpreted by a
+JavaScript engine, and Apple's guideline 3.3.1(B) and Play's device and
+network abuse policy both carve out exactly that — code run by WebKit or a
+JavaScript engine, that does not change what the app is for.
+
+So `updater` updates **files the WebView loads or the app reads**: HTML, CSS,
+JavaScript, WebAssembly run by the WebView, images, fonts, JSON, content. How
+much of an app that covers depends on where its logic lives:
+
+- Styles, images, copy, and configuration: any Dioxus app.
+- Logic: only what runs *in the WebView* — a web page, script, or a
+  WebAssembly build shown in an `iframe` — not the components in the native
+  binary.
+
+A native change still needs a store release. The runtime version (below)
+makes sure a bundle built for one native release is never served by another.
+
+### Setup
+
+```rust,ignore
+use g3_native_plugins::{Updater, UpdaterConfig, UpdaterState};
+
+// `minisign -G` or `tauri signer generate`. Only the public half ships.
+const UPDATER_PUBLIC_KEY: &str = "RWQ...";
+
+fn main() {
+    let config = UpdaterConfig::new(UPDATER_PUBLIC_KEY, "1.4.0") // the embedded content's version
+        .endpoint("https://updates.example.com/{{target}}/{{runtime_version}}/{{current_version}}");
+    // Before anything reads a bundle file: this is where a downloaded update
+    // is installed, or a broken one rolled back.
+    let _ = Updater::new().launch(config);
+    dioxus::launch(App);
+}
+
+// Once the app is up on the new bundle, say so. Skip this and the next launch
+// rolls back.
+plugins.updater.write().notify_ready()?;
+
+plugins.updater.write().start_check()?;
+// ...then poll:
+match plugins.updater.write().state() {
+    UpdaterState::Available(update) => plugins.updater.write().start_download()?,
+    UpdaterState::Downloading { progress, .. } => { /* progress.bytes_done / bytes_total */ }
+    UpdaterState::Ready(update) => { /* active next launch, or apply_now() */ }
+    UpdaterState::Failed(error) => { /* nothing was installed */ }
+    _ => {}
+}
+```
+
+Serve the active bundle to the WebView from a Dioxus asset handler, falling
+back to the embedded copy when no bundle is active or it lacks the file:
+
+```rust,ignore
+use dioxus::mobile::{use_asset_handler, wry::http::Response};
+use g3_native_plugins::{bundle_content_type, Updater};
+
+use_asset_handler("bundle", |request, responder| {
+    let path = request.uri().path().trim_start_matches("/bundle/").to_string();
+    let bytes = Updater::new()
+        .resolve_asset(&path)
+        .and_then(|file| std::fs::read(file).ok())
+        .or_else(|| embedded_asset(&path)); // e.g. from include_bytes!
+    let response = match bytes {
+        Some(bytes) => Response::builder()
+            .header("Content-Type", bundle_content_type(&path))
+            .body(bytes),
+        None => Response::builder().status(404).body(Vec::new()),
+    };
+    responder.respond(response.unwrap());
+});
+// Then reference files as "/bundle/app.css", "/bundle/index.html", ...
+```
+
+### Server format
+
+The endpoint answers `204 No Content` for "nothing new", or a release in the
+same shape a Tauri update server returns — a per-platform table, or a single
+`url` and `signature` for a server that already chose the platform from the
+URL. Platform keys are `ios-aarch64`, `android-aarch64`, and so on, falling
+back to plain `ios` or `android`:
+
+```json
+{
+  "version": "1.4.1",
+  "notes": "Fixes the scorecard layout",
+  "pub_date": "2026-09-24T12:00:00Z",
+  "platforms": {
+    "ios": { "url": "https://cdn.example.com/1.4.1/manifest.json", "signature": "..." },
+    "android": { "url": "https://cdn.example.com/1.4.1/manifest.json", "signature": "..." }
+  }
+}
+```
+
+Where Tauri's `url` points at an installer, here it points at a **bundle
+manifest**: every file in the bundle and its SHA-256. The signature is over the
+manifest's exact bytes, and the hashes carry that guarantee to each file.
+Files are fetched relative to the manifest unless an entry gives its own `url`
+or the manifest a `base_url`:
+
+```json
+{
+  "version": "1.4.1",
+  "runtime_version": "1.4.0",
+  "files": [
+    { "path": "index.html", "sha256": "ff2e...7118", "size": 13 },
+    { "path": "css/app.css", "sha256": "8dfb...1e3d", "size": 21 }
+  ]
+}
+```
+
+Sign it with `minisign -S -s updater.key -m manifest.json` and put the contents
+of `manifest.json.minisig` in `signature`, or use `tauri signer sign` and its
+base64 output as is. Both key and signature formats are accepted either way.
+
+### What is checked, and when
+
+- The manifest is verified against the public key **before it is parsed**.
+- Its `version` must match what the release advertised (the release JSON is
+  unsigned; the manifest is the authority), and be newer than what is running.
+- Its `runtime_version` must equal the app's. It defaults to the app's version
+  (`CFBundleShortVersionString`, `versionName`), so every store release starts
+  clean; pin it with `UpdaterConfig::runtime_version` to keep bundles across
+  native releases that did not change what the bundle relies on. When it
+  changes, every downloaded bundle is discarded.
+- Every file must match its hash and size. Files unchanged since the active
+  bundle are copied rather than downloaded.
+- Paths are relative and cannot climb out of the bundle directory.
+- The bundle is staged, then moved into place and installed at the **next
+  launch** — never under a running app, unless it asks with `apply_now()`.
+- A new bundle launches **on trial**. If that launch ends without
+  `notify_ready()`, the next launch goes back to the previous bundle and that
+  version is never offered again.
+- A downloaded bundle no newer than the embedded content (after a store update
+  that shipped it) is discarded in favor of the embedded copy.
+
+Downloads use the platform's HTTP stack (`URLSession`, `HttpURLConnection`),
+so App Transport Security, network security config, and system proxies apply
+as they would to anything else in the app. Bundles live in storage excluded
+from backup.
 
 ## License
 

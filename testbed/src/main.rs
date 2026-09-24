@@ -19,13 +19,30 @@ mod status;
 mod style;
 
 use dioxus::prelude::*;
-use g3_native_plugins::{NativePlugins, NativePluginsProvider};
+use g3_native_plugins::{
+    NativePlugins, NativePluginsProvider, NotificationEvent, Notifications, PushEvent,
+    PushNotifications, Updater, UpdaterConfig, UpdaterState,
+};
 use report::Reporter;
 use status::{Results, Status, Summary};
 use std::collections::BTreeMap;
 
+/// A throwaway minisign key whose secret half is a published test fixture in
+/// the crate's updater tests. Fine for proving the plumbing; a real app ships
+/// the public half of a key nobody else has.
+const UPDATER_TEST_KEY: &str = "RWQBI0VniavN7wOhB7/zzhC+HXDdGOdLwJln5NYwm6UNXx3chmQSVTG4";
+
 fn main() {
     dioxus::logger::initialize_default();
+    // Before launch, where they belong: a notification tap that starts the
+    // app is delivered during launch, and the updater installs or rolls back
+    // before anything reads a bundle file.
+    let _ = Notifications::new().prepare();
+    let _ = PushNotifications::new().prepare();
+    let _ = Updater::new().launch(
+        UpdaterConfig::new(UPDATER_TEST_KEY, "0.1.0")
+            .endpoint("https://g3-testbed.example.com/updates/{{target}}/{{current_version}}"),
+    );
     dioxus::launch(App);
 }
 
@@ -88,6 +105,21 @@ fn Harness() -> Element {
             plugins.in_app_purchases.write().prepare(),
         );
         reporter.result("back-button", plugins.back_button.write().prepare());
+        reporter.result(
+            "notifications.permissions",
+            plugins.notifications.write().check_permissions(),
+        );
+        // Reaching this effect is the proof a bundle works, so confirm it.
+        let serving = plugins.updater.write().current_version();
+        reporter.result(
+            "updater",
+            plugins.updater.write().notify_ready().map(|_| {
+                format!(
+                    "serving {}",
+                    serving.unwrap_or_else(|| "nothing: launch failed".to_string())
+                )
+            }),
+        );
 
         // These three used to go through manganis-generated Android calls,
         // whose FindClass fails specifically from this Dioxus effect thread.
@@ -133,6 +165,8 @@ fn Harness() -> Element {
     // purchase settling.
     use_future(move || async move {
         let mut plugins = plugins;
+        // The updater reports a state, not events, so only a change is news.
+        let mut last_updater_state = UpdaterState::Idle;
         loop {
             if let Ok(Some(url)) = plugins.deep_links.write().take_link() {
                 reporter.record("deep-links.received", Status::Pass, url);
@@ -185,6 +219,43 @@ fn Harness() -> Element {
                 Err(error) => reporter.record("in-app-purchases.entitlements", Status::Fail, error),
                 Ok(None) => {}
             }
+            while let Ok(Some(event)) = plugins.notifications.write().take_event() {
+                let detail = match event {
+                    NotificationEvent::Received { notification } => {
+                        format!("delivered in foreground: {}", notification.title)
+                    }
+                    NotificationEvent::Action {
+                        action_id,
+                        input,
+                        notification,
+                    } => format!("{action_id} on {} {input:?}", notification.title),
+                };
+                reporter.record("notifications.event", Status::Pass, detail);
+            }
+            while let Ok(Some(event)) = plugins.push_notifications.write().take_event() {
+                match event {
+                    PushEvent::Token(token) => reporter.record(
+                        "push.token",
+                        Status::Pass,
+                        format!("{:?} {}", token.service, token.token),
+                    ),
+                    PushEvent::RegistrationFailed(error) => {
+                        reporter.record("push.token", Status::Fail, error)
+                    }
+                    other => reporter.record("push.event", Status::Pass, format!("{other:?}")),
+                }
+            }
+            let updater_state = plugins.updater.write().state();
+            if updater_state != last_updater_state {
+                match &updater_state {
+                    UpdaterState::Checking | UpdaterState::Idle => {}
+                    UpdaterState::Failed(error) => {
+                        reporter.record("updater.check", Status::Fail, error)
+                    }
+                    state => reporter.record("updater.check", Status::Pass, format!("{state:?}")),
+                }
+                last_updater_state = updater_state;
+            }
             sleep_ms(400).await;
         }
     });
@@ -207,6 +278,9 @@ fn Harness() -> Element {
             cards::ExternalUrlCard {}
             cards::PurchasesCard {}
             cards::AuthCard {}
+            cards::NotificationsCard {}
+            cards::PushCard {}
+            cards::UpdaterCard {}
 
             details {
                 summary { "Full log ({log.read().len()} lines)" }

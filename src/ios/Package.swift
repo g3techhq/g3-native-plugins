@@ -14,7 +14,10 @@ let package = Package(
         .library(name: "GeolocationPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "InAppPurchasesPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "MediaPlugin", type: .static, targets: ["DioxusNativePlugins"]),
+        .library(name: "NotificationsPlugin", type: .static, targets: ["DioxusNativePlugins"]),
+        .library(name: "PushNotificationsPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "StoragePlugin", type: .static, targets: ["DioxusNativePlugins"]),
+        .library(name: "UpdaterPlugin", type: .static, targets: ["DioxusNativePlugins"]),
     ],
     targets: [
         .target(
@@ -29,6 +32,7 @@ let package = Package(
                 .linkedFramework("Security"),
                 .linkedFramework("StoreKit"),
                 .linkedFramework("UIKit", .when(platforms: [.iOS])),
+                .linkedFramework("UserNotifications"),
                 .linkedFramework("WebKit"),
             ]
         ),

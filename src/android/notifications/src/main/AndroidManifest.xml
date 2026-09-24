@@ -1,0 +1,35 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Runtime permission from Android 13; granted at install before that. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Alarms do not survive a reboot, so scheduled notifications are
+         re-armed from BootReceiver. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- SCHEDULE_EXACT_ALARM is deliberately not declared. Play restricts it
+         to alarm and calendar apps; without it notifications fire inexactly,
+         within minutes. An app that qualifies can declare it itself and this
+         plugin will use exact alarms. -->
+
+    <application>
+        <!-- singleTask: tapping a notification launches the app's launcher
+             Activity, and wry cannot host a second Activity in one process.
+             Under the default launch mode a tap on a running app would start
+             one and abort it; under singleTask it arrives as a new Intent. -->
+        <activity
+            android:name="dev.dioxus.main.MainActivity"
+            android:launchMode="singleTask" />
+        <receiver
+            android:name="dev.dioxus.g3_native_plugins.notifications.AlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="dev.dioxus.g3_native_plugins.notifications.ActionReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="dev.dioxus.g3_native_plugins.notifications.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
