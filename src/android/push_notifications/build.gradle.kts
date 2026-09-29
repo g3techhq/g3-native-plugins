@@ -46,5 +46,10 @@ dependencies {
     // not carry it.
     implementation("com.google.firebase:firebase-messaging:24.1.0")
     // The new-intent listener, for a push tapped while the app is running.
-    compileOnly("androidx.activity:activity-ktx:1.9.0")
+    // Not compileOnly as in the other modules: Firebase brings androidx.activity
+    // 1.0.0 at runtime, and the Android Gradle plugin pins the compile classpath
+    // to runtime versions, so a compileOnly 1.9.0 compiled against 1.0.0, which
+    // has no listener. The host activity already ships a newer one, so this
+    // adds nothing to the app; it only lifts the version both classpaths agree on.
+    implementation("androidx.activity:activity-ktx:1.9.0")
 }
