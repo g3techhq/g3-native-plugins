@@ -9,8 +9,9 @@ too. Follow these over your defaults.
 **g3-native-plugins** wraps native platform capabilities for Dioxus apps:
 clipboard and share, Apple and Google sign-in, external URLs, key-value
 storage, camera and microphone permission, geolocation, in-app purchases,
-system Back, background media, and deep links (receiving them, and the
-metadata files a server hosts for them). Every plugin is behind a feature
+system Back, background media, deep links (receiving them, and the
+metadata files a server hosts for them), local and push notifications, and
+signed over-the-air updates of the web bundle. Every plugin is behind a feature
 flag. Part of the g3 stack; g3-route-transitions' `native-back` builds on the
 `back-button` plugin, and the g3 apps use the rest.
 
