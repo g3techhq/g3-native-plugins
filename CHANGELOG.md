@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-28
+
 ### Added
 
 - `updater` feature: signed over-the-air updates of the files the WebView
