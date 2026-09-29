@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "g3-native-plugins"
-version = "0.1.0"
+version = "0.4.1"
 dependencies = [
  "cfg-if",
  "dioxus",
@@ -1834,9 +1834,12 @@ dependencies = [
  "jni 0.21.1",
  "js-sys",
  "manganis",
+ "minisign-verify",
  "ndk-context",
+ "semver",
  "serde",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -3104,6 +3107,12 @@ dependencies = [
  "mime",
  "unicase",
 ]
+
+[[package]]
+name = "minisign-verify"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22f9645cb765ea72b8111f36c522475d2daa0d22c957a9826437e97534bc4e9e"
 
 [[package]]
 name = "miniz_oxide"

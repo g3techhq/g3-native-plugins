@@ -7,7 +7,10 @@
 use crate::report::Reporter;
 use crate::status::{Check, Status};
 use dioxus::prelude::*;
-use g3_native_plugins::{NativePlugins, PositionOptions};
+use g3_native_plugins::{
+    Action as NotificationAction, ActionType, NativePlugins, Notification, PositionOptions,
+    Schedule,
+};
 
 /// A titled card with a one-line explanation of what the plugin is for.
 #[component]
@@ -465,6 +468,130 @@ pub fn AuthCard() -> Element {
             p { class: "hint",
                 "Needs an account on the device, and this app registered against the client id"
             }
+        }
+    }
+}
+
+#[component]
+pub fn NotificationsCard() -> Element {
+    let plugins = use_context::<NativePlugins>();
+    let reporter = use_context::<Reporter>();
+    rsx! {
+        Card { title: "Notifications", what: "Local notifications, now and later",
+            Check { area: "notifications.permissions", label: "Permission state" }
+            Check { area: "notifications.show", label: "Shown or scheduled" }
+            Check { area: "notifications.event", label: "Tap or delivery came back" }
+            div { class: "row",
+                Action { label: "Request permission", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.notifications.write().request_permissions()
+                        .map(|_| "prompt raised; check again after answering");
+                    reporter.result("notifications.permissions", result);
+                } }
+                Action { label: "Check permission", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.notifications.write().check_permissions();
+                    reporter.result("notifications.permissions", result);
+                } }
+                Action { label: "Show now", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.notifications.write()
+                        .show(&Notification::new(1, "Test bed").body("Shown immediately"))
+                        .map(|_| "shown; tap it to see the event");
+                    reporter.result("notifications.show", result);
+                } }
+                Action { label: "In 10 seconds, with buttons", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = (|| -> Result<&str, String> {
+                        let mut notifications = plugins.notifications.write();
+                        notifications.register_action_types(&[ActionType {
+                            id: "testbed".to_string(),
+                            actions: vec![
+                                NotificationAction {
+                                    id: "ok".to_string(),
+                                    title: "OK".to_string(),
+                                    ..NotificationAction::default()
+                                },
+                                NotificationAction {
+                                    id: "reply".to_string(),
+                                    title: "Reply".to_string(),
+                                    input: true,
+                                    ..NotificationAction::default()
+                                },
+                            ],
+                        }])?;
+                        let now_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|elapsed| elapsed.as_millis() as i64)
+                            .unwrap_or_default();
+                        notifications.show(
+                            &Notification::new(2, "Test bed")
+                                .body("Scheduled ten seconds ago")
+                                .action_type("testbed")
+                                .extra("from", "testbed")
+                                .schedule(Schedule::At { at_ms: now_ms + 10_000, allow_while_idle: false }),
+                        )?;
+                        Ok("scheduled; background the app to see it arrive")
+                    })();
+                    reporter.result("notifications.show", result);
+                } }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn PushCard() -> Element {
+    let plugins = use_context::<NativePlugins>();
+    let reporter = use_context::<Reporter>();
+    rsx! {
+        Card { title: "Push", what: "APNs or FCM token and messages",
+            Check { area: "push.token", label: "Token" }
+            Check { area: "push.event", label: "Push received or opened" }
+            div { class: "row",
+                Action { label: "Register", onclick: move |_| {
+                    let mut plugins = plugins;
+                    // No Firebase project behind the test bed, so Android
+                    // reports that plainly; iOS needs the aps-environment
+                    // entitlement, and says so through the token check.
+                    let result = plugins.push_notifications.write().register(None)
+                        .map(|_| "registering; the token arrives as an event");
+                    reporter.result("push.token", result);
+                } }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn UpdaterCard() -> Element {
+    let plugins = use_context::<NativePlugins>();
+    let reporter = use_context::<Reporter>();
+    rsx! {
+        Card { title: "Updater", what: "Signed over-the-air bundles",
+            Check { area: "updater", label: "Launched and confirmed" }
+            Check { area: "updater.check", label: "Update check" }
+            div { class: "row",
+                Action { label: "Check", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.updater.write().start_check()
+                        .map(|_| "checking");
+                    reporter.result("updater.check", result);
+                } }
+                Action { label: "Download", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.updater.write().start_download()
+                        .map(|_| "downloading");
+                    reporter.result("updater.check", result);
+                } }
+                Action { label: "Reset", onclick: move |_| {
+                    let mut plugins = plugins;
+                    let result = plugins.updater.write().reset()
+                        .map(|_| "back to the embedded content");
+                    reporter.result("updater", result);
+                } }
+            }
+            p { class: "hint", "The test endpoint does not exist, so a check reports that no endpoint answered." }
         }
     }
 }
