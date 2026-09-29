@@ -1,6 +1,6 @@
 [package]
 name = "g3-native-plugins"
-version = "0.4.1"
+version = "0.4.2"
 
 edition = "2024"
 description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, notifications, over-the-air updates, deep links, and platform integration."
