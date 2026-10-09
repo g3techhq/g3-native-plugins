@@ -15,6 +15,7 @@
 #[cfg(all(
     target_os = "android",
     any(
+        feature = "appearance",
         feature = "auth",
         feature = "camera-microphone",
         feature = "clipboard",
@@ -54,6 +55,10 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "clipboard")] { mod clipboard;
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
     #[allow(unused_imports)] pub use clipboard::Clipboard; }
+}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "appearance")] { mod appearance;
+    #[allow(unused_imports)] pub use appearance::SystemAppearance; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "auth")] { mod auth;
@@ -121,6 +126,7 @@ cfg_if::cfg_if! {
 use dioxus::prelude::*;
 #[cfg(all(
     any(
+        feature = "appearance",
         feature = "auth",
         feature = "back-button",
         feature = "camera-microphone",
@@ -155,6 +161,10 @@ use dioxus_signals::Signal;
 /// Construct this directly with [`NativePlugins::new`] or install it in the
 /// Dioxus context with [`NativePluginsProvider`].
 pub struct NativePlugins {
+    /// The system's dark-mode setting where the web view misreports it. On
+    /// every target: it answers `None` wherever the page can tell already.
+    #[cfg(feature = "appearance")]
+    pub appearance: Signal<SystemAppearance>,
     #[cfg(all(
         feature = "auth",
         any(target_os = "android", target_os = "ios", target_os = "macos")
@@ -226,6 +236,8 @@ impl NativePlugins {
     /// Creates reactive handles for every plugin enabled for this target.
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "appearance")]
+            appearance: Signal::new(SystemAppearance::new()),
             #[cfg(all(
                 feature = "auth",
                 any(target_os = "android", target_os = "ios", target_os = "macos")
@@ -298,6 +310,21 @@ mod tests {
             .next()
             .expect("source should split before tests")
     }
+    #[test]
+    fn appearance_asks_the_system_not_the_activity_theme() {
+        let source = production_source(include_str!("appearance.rs"));
+        let kotlin = include_str!(
+            "android/appearance/src/main/kotlin/dev/dioxus/g3_native_plugins/appearance/AppearancePlugin.kt",
+        );
+        let gradle = include_str!("android/appearance/build.gradle.kts");
+        assert!(source.contains("#[manganis::ffi(\"src/android/appearance\")]"));
+        assert!(source.contains("call_string(\"isDarkFromRust\")"));
+        // The Activity's own configuration follows its (light) theme.
+        assert!(kotlin.contains("Resources.getSystem().configuration.uiMode"));
+        assert!(kotlin.contains("fun isDarkFromRust(): String"));
+        assert!(gradle.contains("namespace = \"dev.dioxus.g3_native_plugins.appearance\""));
+    }
+
     #[test]
     fn back_button_interception_is_opt_in() {
         let source = production_source(include_str!("back_button.rs"));

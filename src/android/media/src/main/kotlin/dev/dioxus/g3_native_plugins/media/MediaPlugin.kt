@@ -74,6 +74,8 @@ class MediaPlugin(private val activity: Activity) {
     private var playbackTitle = ""
     private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
     private var pendingWebPlaybackResume: Runnable? = null
+    // The plugin is prepared from a running app, so it starts out resumed.
+    private var activityResumed = true
 
     private fun findWebView(view: View): WebView? {
         if (view is WebView) return view
@@ -159,7 +161,9 @@ class MediaPlugin(private val activity: Activity) {
         if (lifecycleCallbacks != null) return
         val callbacks = object : Application.ActivityLifecycleCallbacks {
             override fun onActivityPaused(paused: Activity) {
-                if (paused === activity && playbackActive) scheduleWebPlaybackResume()
+                if (paused !== activity) return
+                activityResumed = false
+                if (playbackActive) scheduleWebPlaybackResume()
             }
 
             override fun onActivityStopped(stopped: Activity) {
@@ -167,6 +171,7 @@ class MediaPlugin(private val activity: Activity) {
             }
 
             override fun onActivityResumed(resumed: Activity) {
+                if (resumed === activity) activityResumed = true
                 if (resumed === activity && playbackActive) {
                     activity.window.decorView.post { notifyWebPlaybackResume() }
                 }
@@ -647,6 +652,18 @@ class MediaPlugin(private val activity: Activity) {
             if (active) {
                 ensureWindowVisibilityListener()
                 ensureMediaSession()
+                // The screen went off while the video was still loading, so the
+                // host paused the WebView and its timers before there was any
+                // playback to keep alive. Nothing resumed them, and the page's
+                // streaming ran only in bursts: the video played what it had,
+                // stalled, and stuttered until the screen came back on.
+                if (!wasActive && !activityResumed) {
+                    val root = activity.window.decorView
+                    if (root.windowVisibility != View.VISIBLE) {
+                        findWebView(root)?.dispatchWindowVisibilityChanged(View.VISIBLE)
+                    }
+                    scheduleWebPlaybackResume()
+                }
             } else if (wasActive) {
                 pendingWebPlaybackResume?.let(activity.window.decorView::removeCallbacks)
                 pendingWebPlaybackResume = null
