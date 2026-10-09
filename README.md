@@ -17,6 +17,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 
 | Feature | Android | iOS / macOS | Web | Notes |
 | --- | --- | --- | --- | --- |
+| `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly. Elsewhere `None`: the page's own media query is right. |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
 | `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
 | `auth` | yes | iOS only | no | Google Sign-In on Android, Sign in with Apple on iOS. macOS is inert. |
@@ -112,6 +113,21 @@ belonging to another app cannot work however well formed it is. A wrong or
 unregistered id fails exactly like a missing account — no credential, no
 explanation — so check the registration first when sign-in returns `None`
 unexpectedly.
+
+## Appearance
+
+An Android WebView tells the page `prefers-color-scheme: light` whenever the
+app's theme is a light one, which it is in a `dx` build, whatever the phone
+is set to. `dark()` asks the system instead, and answers `None` wherever the
+page already knows. Make the page follow it with `color-scheme`, which is
+what CSS `light-dark()` resolves against:
+
+```rust,ignore
+let mut plugins = use_context::<NativePlugins>();
+if let Some(dark) = plugins.appearance.write().dark() {
+    // e.g. set `color-scheme: dark` or `light` on the root element
+}
+```
 
 ## External URLs
 

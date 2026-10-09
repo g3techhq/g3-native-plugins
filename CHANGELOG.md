@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-08
+
+### Added
+
+- `appearance` feature: `NativePlugins::appearance.dark()` asks Android for
+  the system's dark-mode setting. An Android WebView reports
+  `prefers-color-scheme: light` whenever the app's theme is a light one, which
+  the Activity `dx` generates always is. Everywhere else it answers `None`,
+  because the page's own media query is right.
+
+### Fixed
+
+- Android media: playback that began while the screen was off no longer
+  stutters until the screen comes back on. The host had paused the WebView
+  before there was any playback to keep alive, and nothing resumed it.
+
 ## [0.4.2] - 2026-09-28
 
 ### Added
