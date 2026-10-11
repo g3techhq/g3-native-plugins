@@ -556,6 +556,11 @@ mod tests {
         let swift = include_str!("ios/Sources/InAppPurchasesPlugin.swift");
         let store = include_str!("ios/Sources/StoreCatalogue.swift");
         let gradle = include_str!("android/in_app_purchases/build.gradle.kts");
+        assert!(!kotlin.contains("queryPurchasesAsync(params) { _,"));
+        assert!(!kotlin.contains("queryProductDetailsAsync(params) { _,"));
+        assert!(kotlin.contains("publish(Catalogue.error(errorMessage), isProducts = true)"));
+        assert!(kotlin.contains("else publishEntitlementsError(errorMessage)"));
+        assert!(kotlin.contains("known.putAll(details)"));
         assert!(source.contains("pub fn start_purchase"));
         assert!(source.contains("pub fn poll_entitlements"));
         assert!(source.contains("pub fn start_external_content_link_token"));

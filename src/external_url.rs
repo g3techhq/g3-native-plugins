@@ -79,11 +79,13 @@ impl ExternalUrl {
     pub(crate) fn new() -> Self {
         Self
     }
+    /// Verify that a browser window is available.
     pub fn prepare(&mut self) -> Result<(), String> {
         web_sys::window()
             .ok_or_else(|| "Window is not available".to_string())
             .map(|_| ())
     }
+    /// Navigate the browser to an external URL.
     pub fn open(&mut self, url: &str) -> Result<(), String> {
         let window = web_sys::window().ok_or_else(|| "Window is not available".to_string())?;
         window

@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -22,7 +23,7 @@ jobs:
     uses: g3techhq/.github/.github/workflows/rust-quality.yml@da47dc747376edcf6ecc0cc986aec51f5084bf42 # v1.0.0
 
   android:
-    name: Android Rust facade
+    name: Android facade and packaged testbed
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -36,9 +37,19 @@ jobs:
           targets: aarch64-linux-android
       - name: Check Android target
         run: cargo check --target aarch64-linux-android --all-features
+      - name: Install Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Dioxus CLI
+        run: cargo install dioxus-cli --version 0.7.9 --locked
+      - name: Build Android testbed including Kotlin plugins
+        working-directory: testbed
+        run: dx build --android --target aarch64-linux-android --fullstack false
 
   apple:
-    name: Apple Rust facade
+    name: Apple facade and packaged testbed
     runs-on: macos-14
     steps:
       - name: Check out repository
@@ -54,3 +65,8 @@ jobs:
         run: cargo check --all-features
       - name: Check iOS Simulator target
         run: cargo check --target aarch64-apple-ios-sim --all-features
+      - name: Install Dioxus CLI
+        run: cargo install dioxus-cli --version 0.7.9 --locked
+      - name: Build iOS Simulator testbed including Swift plugins
+        working-directory: testbed
+        run: dx build --ios --target aarch64-apple-ios-sim --fullstack false --codesign false

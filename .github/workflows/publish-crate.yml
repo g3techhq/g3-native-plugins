@@ -18,7 +18,14 @@ permissions:
   id-token: write
 
 jobs:
+  quality:
+    name: Quality gate for the selected commit
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish:
+    needs: quality
     name: Publish g3-native-plugins
     runs-on: ubuntu-latest
     environment: crates-io

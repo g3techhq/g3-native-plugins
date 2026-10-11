@@ -15,6 +15,7 @@ format-check:
 check:
     cargo check
     cargo check --all-features
+    cargo check --all-features --target wasm32-unknown-unknown
 
 lint:
     cargo clippy --all-targets --no-deps
@@ -23,6 +24,7 @@ lint:
 lint-strict:
     cargo clippy --all-targets --no-deps -- -D warnings
     cargo clippy --all-targets --all-features --no-deps -- -D warnings
+    cargo clippy --all-features --target wasm32-unknown-unknown --no-deps -- -D warnings
 
 test:
     cargo nextest run

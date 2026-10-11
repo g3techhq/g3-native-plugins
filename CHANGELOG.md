@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+- Reject staged local shared-library dependencies in the commit hook.
+
+- Report Android catalogue, restore, consumption and acknowledgement failures through the error envelope, preserving the last successful catalogue on partial query failure.
+- Fix WASM strict lint and add browser checks and packaged Android/iOS testbed builds to CI.
+
 ## [0.4.3] - 2026-10-08
 
 ### Added

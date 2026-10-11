@@ -204,6 +204,12 @@ impl KeyValueStore {
     }
 }
 #[cfg(target_arch = "wasm32")]
+impl Default for KeyValueStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+#[cfg(target_arch = "wasm32")]
 impl KeyValueStore {
     /// Construct without touching the platform; the store opens on first use.
     ///

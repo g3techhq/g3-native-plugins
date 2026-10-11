@@ -156,15 +156,26 @@ class InAppPurchasesPlugin(private val activity: Activity) {
             // here, and Play will not say. Ask for both and keep what comes
             // back; an id of the wrong type is simply absent from that answer.
             val collected = JSONArray()
+            val details = mutableMapOf<String, ProductDetails>()
+            var failure: String? = null
             var remaining = 2
-            val onDone = { ->
+            val onDone = { error: String? ->
                 synchronized(lock) {
+                    if (error != null && failure == null) failure = error
                     remaining -= 1
-                    if (remaining == 0) publish(collected.toString(), isProducts = true)
+                    if (remaining == 0) {
+                        val errorMessage = failure
+                        if (errorMessage == null) {
+                            known.putAll(details)
+                            publish(collected.toString(), isProducts = true)
+                        } else {
+                            publish(Catalogue.error(errorMessage), isProducts = true)
+                        }
+                    }
                 }
             }
             for (type in listOf(BillingClient.ProductType.INAPP, BillingClient.ProductType.SUBS)) {
-                queryProducts(ids, type, collected, onDone)
+                queryProducts(ids, type, collected, details, onDone)
             }
         }
     }
@@ -173,7 +184,8 @@ class InAppPurchasesPlugin(private val activity: Activity) {
         ids: List<String>,
         type: String,
         into: JSONArray,
-        onDone: () -> Unit,
+        details: MutableMap<String, ProductDetails>,
+        onDone: (String?) -> Unit,
     ) {
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(
@@ -185,14 +197,18 @@ class InAppPurchasesPlugin(private val activity: Activity) {
                 },
             )
             .build()
-        client.queryProductDetailsAsync(params) { _, result ->
+        client.queryProductDetailsAsync(params) { billingResult, result ->
+            if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                onDone("Could not load $type products: ${billingResult.debugMessage}")
+                return@queryProductDetailsAsync
+            }
             synchronized(lock) {
                 for (item in result.productDetailsList) {
-                    known[item.productId] = item
+                    details[item.productId] = item
                     into.put(Catalogue.product(item))
                 }
             }
-            onDone()
+            onDone(null)
         }
     }
 
@@ -255,14 +271,23 @@ class InAppPurchasesPlugin(private val activity: Activity) {
 
     private fun refreshEntitlements() {
         val collected = JSONArray()
+        var failure: String? = null
         var remaining = 2
         for (type in listOf(BillingClient.ProductType.INAPP, BillingClient.ProductType.SUBS)) {
             val params = QueryPurchasesParams.newBuilder().setProductType(type).build()
-            client.queryPurchasesAsync(params) { _, purchases ->
+            client.queryPurchasesAsync(params) { result, purchases ->
                 synchronized(lock) {
-                    for (purchase in purchases) collected.put(entitlement(purchase))
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                        for (purchase in purchases) collected.put(entitlement(purchase))
+                    } else if (failure == null) {
+                        failure = "Could not restore $type purchases: ${result.debugMessage}"
+                    }
                     remaining -= 1
-                    if (remaining == 0) publish(collected.toString(), isProducts = false)
+                    if (remaining == 0) {
+                        val errorMessage = failure
+                        if (errorMessage == null) publish(collected.toString(), isProducts = false)
+                        else publishEntitlementsError(errorMessage)
+                    }
                 }
             }
         }
@@ -292,12 +317,18 @@ class InAppPurchasesPlugin(private val activity: Activity) {
                 val params = ConsumeParams.newBuilder()
                     .setPurchaseToken(transactionId)
                     .build()
-                client.consumeAsync(params) { _, _ -> refreshEntitlements() }
+                client.consumeAsync(params) { result, _ ->
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK) refreshEntitlements()
+                    else publishEntitlementsError("Could not consume purchase: ${result.debugMessage}")
+                }
             } else {
                 val params = AcknowledgePurchaseParams.newBuilder()
                     .setPurchaseToken(transactionId)
                     .build()
-                client.acknowledgePurchase(params) { _ -> refreshEntitlements() }
+                client.acknowledgePurchase(params) { result ->
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK) refreshEntitlements()
+                    else publishEntitlementsError("Could not acknowledge purchase: ${result.debugMessage}")
+                }
             }
         }
     }
