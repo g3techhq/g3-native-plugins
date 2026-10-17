@@ -603,6 +603,18 @@ class MediaPlugin(private val activity: Activity) {
                 "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
+            // Turning the window re-delivers the insets with the bars back on,
+            // which left the status bar over a wide video that had hidden it
+            // just before rotating. Hide them again once the turn has settled;
+            // an edge swipe's transient bars are not touched.
+            if (systemBarsWanted) {
+                val root = activity.window.decorView
+                for (delay in longArrayOf(250L, 700L)) {
+                    root.postDelayed({
+                        if (systemBarsWanted) applySystemBarsHidden(true)
+                    }, delay)
+                }
+            }
         }
     }
 
@@ -612,9 +624,18 @@ class MediaPlugin(private val activity: Activity) {
     /// video players.
     fun setSystemBarsHiddenFromRust(hidden: Boolean) {
         activity.runOnUiThread {
+            systemBarsWanted = hidden
+            applySystemBarsHidden(hidden)
+        }
+    }
+
+    private var systemBarsWanted = false
+
+    private fun applySystemBarsHidden(hidden: Boolean) {
+        run {
             val window = activity.window
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val controller = window.insetsController ?: return@runOnUiThread
+                val controller = window.insetsController ?: return
                 if (hidden) {
                     controller.systemBarsBehavior =
                         WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
