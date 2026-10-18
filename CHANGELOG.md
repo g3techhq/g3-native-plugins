@@ -6,13 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-- Reject staged local shared-library dependencies in the commit hook.
+## [0.4.5] - 2026-10-18
 
-- Report Android catalogue, restore, consumption and acknowledgement failures through the error envelope, preserving the last successful catalogue on partial query failure.
-- Fix WASM strict lint and add browser checks and packaged Android/iOS testbed builds to CI.
+### Fixed
+
 - Android media: a video that hid the system bars keeps them hidden after the
   device rotates. Rotating re-delivered the window insets with the bars shown,
   which left the status bar over a wide video.
+
+## [0.4.4] - 2026-10-11
+
+### Changed
+
+- Reject staged local shared-library dependencies in the commit hook.
+
+### Fixed
+
+- Report Android catalogue, restore, consumption and acknowledgement failures through the error envelope, preserving the last successful catalogue on partial query failure.
+- Fix WASM strict lint and add browser checks and packaged Android/iOS testbed builds to CI.
 
 ## [0.4.3] - 2026-10-08
 
