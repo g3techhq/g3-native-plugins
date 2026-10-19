@@ -55,5 +55,7 @@ notifications = []
 # Remote push rides on the local plugin: the permission a push needs to be seen
 # is the notification permission, and there is one place to ask for it.
 push-notifications = ["notifications"]
+# Started by NativePluginsProvider: an app enabling it needs no code.
+safe-area = []
 storage = []
 updater = ["dep:minisign-verify", "dep:semver", "dep:sha2"]

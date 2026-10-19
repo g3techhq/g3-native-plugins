@@ -1,4 +1,5 @@
-//! The system's light or dark setting, where the web view cannot see it.
+//! The system's light or dark setting, where the web view cannot see it, and
+//! the system-bar icon color that has to match the page.
 //!
 //! An Android WebView does not report the system theme to the page. From
 //! target SDK 33 its `prefers-color-scheme` follows the app's own theme
@@ -45,14 +46,44 @@ impl SystemAppearance {
     pub fn dark(&mut self) -> Option<bool> {
         #[cfg(target_os = "android")]
         {
-            if self.plugin.is_none() {
-                self.plugin = crate::android_bridge::AndroidPlugin::new(APPEARANCE_CLASS).ok();
-            }
-            let answer = self.plugin.as_ref()?.call_string("isDarkFromRust").ok()??;
+            let answer = self.plugin()?.call_string("isDarkFromRust").ok()??;
             Some(answer == "true")
         }
         #[cfg(not(target_os = "android"))]
         None
+    }
+
+    /// Makes the status- and navigation-bar icons dark (`true`, for a light
+    /// page) or light (`false`, for a dark page).
+    ///
+    /// On Android 15 the app is drawn edge to edge: the page sits behind the
+    /// system bars, but their icons follow the Activity's theme, so a light
+    /// page under the light theme `dx` generates can end up with white icons
+    /// on it. Call this with the scheme the page actually draws, and again
+    /// whenever it changes. Inert elsewhere: iOS picks the status-bar style
+    /// from the interface style the web view already follows, and a browser
+    /// has no bars to color.
+    pub fn set_dark_bar_icons(&mut self, dark: bool) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        {
+            let plugin = self
+                .plugin()
+                .ok_or_else(|| "The appearance plugin is unavailable".to_string())?;
+            plugin.call_unit_bool("setDarkBarIconsFromRust", dark)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = dark;
+            Ok(())
+        }
+    }
+
+    #[cfg(target_os = "android")]
+    fn plugin(&mut self) -> Option<&crate::android_bridge::AndroidPlugin> {
+        if self.plugin.is_none() {
+            self.plugin = crate::android_bridge::AndroidPlugin::new(APPEARANCE_CLASS).ok();
+        }
+        self.plugin.as_ref()
     }
 }
 

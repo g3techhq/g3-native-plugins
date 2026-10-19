@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `safe-area`: publishes the Android system-bar and cutout insets as
+  `--g3-safe-area-*` CSS variables, which g3-ui reads ahead of
+  `env(safe-area-inset-*)`. Android WebViews before Chrome's edge-to-edge
+  support report `env()` as 0, so pages slid under the status bar and the
+  gesture bar. `NativePluginsProvider` starts it. `SafeArea::set_bars_hidden`
+  hides the system bars (immersive), after which the insets are 0.
+
+- `appearance`: `SystemAppearance::set_dark_bar_icons` sets the Android
+  status- and navigation-bar icon color to match the page. Under Android 15's
+  edge-to-edge drawing the icons otherwise follow the Activity theme, which can
+  leave white icons on a light page. Inert on iOS and the web.
+
 ## [0.4.5] - 2026-10-18
 
 ### Fixed

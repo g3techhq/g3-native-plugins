@@ -24,6 +24,7 @@
         feature = "geolocation",
         feature = "in-app-purchases",
         feature = "notifications",
+        feature = "safe-area",
         feature = "storage",
         feature = "updater"
     )
@@ -113,6 +114,10 @@ cfg_if::cfg_if! {
     #[allow(unused_imports)] pub use push_notifications::PushNotifications; }
 }
 cfg_if::cfg_if! {
+    if #[cfg(feature = "safe-area")] { mod safe_area;
+    #[allow(unused_imports)] pub use safe_area::SafeArea; }
+}
+cfg_if::cfg_if! {
     if #[cfg(feature = "storage")] { mod storage;
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
     #[allow(unused_imports)] pub use storage::KeyValueStore; }
@@ -137,6 +142,7 @@ use dioxus::prelude::*;
         feature = "in-app-purchases",
         feature = "media",
         feature = "notifications",
+        feature = "safe-area",
         feature = "storage",
         feature = "updater"
     ),
@@ -225,6 +231,10 @@ pub struct NativePlugins {
     /// macOS builds are inert, so callers need no cfg of their own.
     #[cfg(feature = "updater")]
     pub updater: Signal<Updater>,
+    /// System-bar insets for an edge-to-edge page, and hiding the bars. On
+    /// every target: inert where `env(safe-area-inset-*)` already works.
+    #[cfg(feature = "safe-area")]
+    pub safe_area: Signal<SafeArea>,
 }
 #[cfg(any(
     target_arch = "wasm32",
@@ -275,6 +285,8 @@ impl NativePlugins {
             storage: Signal::new(KeyValueStore::new()),
             #[cfg(feature = "updater")]
             updater: Signal::new(Updater::new()),
+            #[cfg(feature = "safe-area")]
+            safe_area: Signal::new(SafeArea::new()),
         }
     }
 }
@@ -297,7 +309,14 @@ pub fn NativePluginsProvider(children: Element) -> Element {
         target_os = "ios",
         target_os = "macos"
     ))]
-    use_context_provider(NativePlugins::default);
+    let _plugins = use_context_provider(NativePlugins::default);
+    // After the first render, so the page exists to receive the insets.
+    #[cfg(all(feature = "safe-area", target_os = "android"))]
+    use_effect(move || {
+        use dioxus_signals::WritableExt;
+        let mut safe_area = _plugins.safe_area;
+        let _ = safe_area.write().start();
+    });
     rsx! {
         {children}
     }

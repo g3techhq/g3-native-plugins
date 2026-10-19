@@ -17,7 +17,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 
 | Feature | Android | iOS / macOS | Web | Notes |
 | --- | --- | --- | --- | --- |
-| `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly. Elsewhere `None`: the page's own media query is right. |
+| `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly, and the system-bar icon color for an edge-to-edge page. Elsewhere `None` and inert: the page's own media query is right. |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
 | `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
 | `auth` | yes | iOS only | no | Google Sign-In on Android, Sign in with Apple on iOS. macOS is inert. |
@@ -26,6 +26,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `back-button` | yes | iOS only | no | The back *event*, whatever raises it: Android's system back, an iOS left-edge swipe. |
 | `deep-links` | yes | iOS only | n/a | Receives the URL a universal link, App Link, or custom scheme opened the app with. |
 | `in-app-purchases` | yes | iOS only | n/a | Products, purchases, subscriptions, and restore. Play Billing and StoreKit 2. |
+| `safe-area` | yes | not needed | not needed | The status bar, cutout and gesture-bar insets of an edge-to-edge page, as CSS variables g3-ui reads; and hiding the system bars. Started by the provider. |
 | `storage` | yes | iOS only | yes\* | Key-value storage. Keystore AES-GCM / Keychain. \*Web is `localStorage` and **not** encrypted. |
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
 | `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
@@ -127,6 +128,36 @@ let mut plugins = use_context::<NativePlugins>();
 if let Some(dark) = plugins.appearance.write().dark() {
     // e.g. set `color-scheme: dark` or `light` on the root element
 }
+```
+
+On Android 15 the app is drawn edge to edge, so the page sits under the
+status and navigation bars while their icons still follow the Activity's
+theme. Tell the system which icons the page needs, now and whenever the
+scheme the page draws changes:
+
+```rust,ignore
+// Dark icons on a light page, light icons on a dark one.
+let _ = plugins.appearance.write().set_dark_bar_icons(!page_is_dark);
+```
+
+## Safe Area
+
+Android 15 draws every app edge to edge, so the status bar, a camera cutout
+and the gesture or button bar sit over the page. `env(safe-area-inset-*)` is
+how a page avoids them, but Android WebViews before Chrome's edge-to-edge
+support report all four as 0. With `safe-area` enabled, the provider reads the
+insets from the window and keeps `--g3-safe-area-top`, `-right`, `-bottom`
+and `-left` up to date on the root element, in CSS pixels. g3-ui uses those
+ahead of `env()`, so its header, tab bar, sheets and toasts clear the bars
+with no code in the app. iOS and browsers report `env()` correctly already,
+so the feature is inert there.
+
+Hidden bars report no inset, so hiding them gives the page the whole screen:
+
+```rust,ignore
+let mut plugins = use_context::<NativePlugins>();
+// A swipe from the edge shows the bars for a moment.
+plugins.safe_area.write().set_bars_hidden(true)?;
 ```
 
 ## External URLs
