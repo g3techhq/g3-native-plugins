@@ -276,6 +276,7 @@ fn Harness() -> Element {
             cards::ClipboardCard {}
             cards::MediaCard {}
             cards::ExternalUrlCard {}
+            cards::AppInfoCard {}
             cards::PurchasesCard {}
             cards::AuthCard {}
             cards::NotificationsCard {}

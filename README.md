@@ -17,6 +17,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 
 | Feature | Android | iOS / macOS | Web | Notes |
 | --- | --- | --- | --- | --- |
+| `app-info` | yes | iOS only | no | Installed package identifier, version and native build. Returns `None` on macOS/web/server. No provider is needed. |
 | `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly, and the system-bar icon color for an edge-to-edge page. Elsewhere `None` and inert: the page's own media query is right. |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
 | `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
@@ -38,6 +39,15 @@ everywhere, including on the server. Only receiving a link needs the
 `deep-links` feature.
 
 ## Install
+
+### Installed app version
+
+Enable `app-info` and call `g3_native_plugins::installed_app_info()` from a mobile
+effect or handler. It returns `Result<Option<AppInfo>, String>` with `identifier`,
+`version`, and `build` from the installed package. Keep the build as text: Android
+uses its full `longVersionCode`, while iOS build numbers may have numeric parts.
+Other targets return `Ok(None)`. Use this metadata for store-update checks; the
+content updater's version describes a different thing.
 
 Enable only the plugins your app uses:
 

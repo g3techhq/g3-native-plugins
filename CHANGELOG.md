@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `app-info`: read the installed iOS/Android identifier, display version and native
+  build through `installed_app_info()`. Returns `None` on other platforms.
+
 - `safe-area`: publishes the Android system-bar and cutout insets as
   `--g3-safe-area-*` CSS variables, which g3-ui reads ahead of
   `env(safe-area-inset-*)`. Android WebViews before Chrome's edge-to-edge

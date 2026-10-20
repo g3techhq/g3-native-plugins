@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 dioxus = { version = "=0.7.9", features = [] }
 g3-native-plugins = { path = "..", features = [
+    "app-info",
     "auth",
     "back-button",
     "camera-microphone",

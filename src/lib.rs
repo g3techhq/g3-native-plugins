@@ -15,6 +15,7 @@
 #[cfg(all(
     target_os = "android",
     any(
+        feature = "app-info",
         feature = "appearance",
         feature = "auth",
         feature = "camera-microphone",
@@ -30,6 +31,10 @@
     )
 ))]
 mod android_bridge;
+#[cfg(feature = "app-info")]
+mod app_info;
+#[cfg(feature = "app-info")]
+pub use app_info::{AppInfo, installed_app_info};
 /// Both halves of deep linking: builders for the `apple-app-site-association`
 /// and `assetlinks.json` files that make universal links and App Links resolve
 /// to the app, and — behind the `deep-links` feature — the plugin that receives

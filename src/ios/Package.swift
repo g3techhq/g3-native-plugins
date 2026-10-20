@@ -5,6 +5,7 @@ let package = Package(
     name: "DioxusNativePlugins",
     platforms: [.iOS("15")],
     products: [
+        .library(name: "AppInfoPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "AuthPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "BackButtonPlugin", type: .static, targets: ["DioxusNativePlugins"]),
         .library(name: "CameraMicrophonePlugin", type: .static, targets: ["DioxusNativePlugins"]),

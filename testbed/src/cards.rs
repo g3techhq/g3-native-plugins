@@ -354,6 +354,23 @@ pub fn ExternalUrlCard() -> Element {
 }
 
 #[component]
+pub fn AppInfoCard() -> Element {
+    let reporter = use_context::<Reporter>();
+    rsx! {
+        Card { title: "App info", what: "Installed package version and native build",
+            Check { area: "app-info", label: "Read installed metadata" }
+            Action { label: "Read app info", onclick: move |_| {
+                let result = g3_native_plugins::installed_app_info().and_then(|info| {
+                    info.map(|value| format!("{} {} ({})", value.identifier, value.version, value.build))
+                        .ok_or_else(|| "Native metadata is unavailable on this platform".into())
+                });
+                reporter.result("app-info", result);
+            } }
+        }
+    }
+}
+
+#[component]
 pub fn PurchasesCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
