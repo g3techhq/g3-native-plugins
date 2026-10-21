@@ -964,4 +964,66 @@ mod tests {
             assert!(!source.contains(&format!("plugin: Result<{plugin_type}, String>")));
         }
     }
+    /// The classes named in a module's Rust source, which the bridge resolves
+    /// through `loadClass` at run time.
+    fn jni_classes(source: &str) -> Vec<String> {
+        const PREFIX: &str = "dev.dioxus.g3_native_plugins.";
+        let mut found: Vec<String> = Vec::new();
+        for (index, _) in source.match_indices(PREFIX) {
+            let tail = &source[index..];
+            let end = tail
+                .find(|character: char| {
+                    !(character.is_ascii_alphanumeric() || character == '.' || character == '_')
+                })
+                .unwrap_or(tail.len());
+            let name = tail[..end].trim_end_matches('.').to_owned();
+            // The class names only, not a package namespace or an intent action.
+            if name.split('.').count() == 5 && name.ends_with("Plugin") && !found.contains(&name) {
+                found.push(name);
+            }
+        }
+        found
+    }
+    /// No Java or Kotlin code references a plugin class: the Rust side loads it
+    /// by name, so R8 sees it as dead code. Without a keep rule it is stripped
+    /// or renamed out of a consuming app's *release* build only, and the
+    /// failure is a `loadClass` error on a device, not a broken build.
+    #[test]
+    fn every_jni_loaded_class_has_an_r8_keep_rule() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut modules = 0;
+        for entry in std::fs::read_dir(root.join("src/android")).expect("Android modules") {
+            let directory = entry.expect("module entry").path();
+            if !directory.is_dir() {
+                continue;
+            }
+            let module = directory
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("module name")
+                .to_owned();
+            let source = std::fs::read_to_string(root.join(format!("src/{module}.rs")))
+                .unwrap_or_else(|error| panic!("{module} has no Rust source: {error}"));
+            let rules = std::fs::read_to_string(directory.join("consumer-rules.pro"))
+                .unwrap_or_else(|error| panic!("{module} ships no consumer-rules.pro: {error}"));
+            let classes = jni_classes(production_source(&source));
+            assert!(
+                !classes.is_empty(),
+                "{module} names no plugin class, so this test cannot check its keep rule",
+            );
+            for class in classes {
+                let package = class.rsplit_once('.').expect("qualified class").0;
+                // The class by name, or a wildcard over its package.
+                let kept = rules.contains(&format!("-keep class {class} "))
+                    || rules.contains(&format!("-keep class {package}.** "));
+                assert!(
+                    kept,
+                    "src/android/{module}/consumer-rules.pro keeps no rule for {class}, so R8 \
+                     can strip it from a consuming app's release build",
+                );
+            }
+            modules += 1;
+        }
+        assert_eq!(modules, 16, "a plugin module was added or removed");
+    }
 }

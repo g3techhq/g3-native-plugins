@@ -23,6 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   edge-to-edge drawing the icons otherwise follow the Activity theme, which can
   leave white icons on a light page. Inert on iOS and the web.
 
+### Fixed
+
+- Android: every plugin module now ships an R8 keep rule for the class the Rust
+  side loads by name. Twelve modules carried an empty `consumer-rules.pro`, so
+  an app built with minification enabled could have the class stripped or
+  renamed and fail with a `loadClass` error on a device. Debug builds never
+  showed it, because the failure was release-only.
+
 ## [0.4.5] - 2026-10-18
 
 ### Fixed
