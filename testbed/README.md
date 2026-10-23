@@ -139,9 +139,10 @@ original account. The token shown here does not authorize any entitlement.
 
 For the account attribution change, `just pre-push`, the Android target check and
 the packaged Android testbed build passed on Windows. A licensed Play purchase,
-account-switch restore and the Apple build/store flow have not been run for this
-change. Source contract tests cover the Rust/Kotlin/Swift bridge but do not replace
-those device checks.
+account-switch restore and actual Apple store flow have not been run for this
+change. The [CI run for attribution commit 983f4b2](https://github.com/g3techhq/g3-native-plugins/actions/runs/40004306324)
+also passes quality, Apple facade/packaged iOS Simulator and Android facade/packaged
+testbed builds. Source and compilation checks do not replace licensed device flows.
 
 The storage self-test now uses `set_durable` for its round trip. That API's
 pre-push and packaged Android build checks pass. The updated self-test has not
