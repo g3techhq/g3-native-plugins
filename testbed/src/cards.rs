@@ -404,7 +404,7 @@ pub fn PurchasesCard() -> Element {
                 Action { label: "Buy subscription", onclick: move |_| {
                     let mut plugins = plugins;
                     match plugins.in_app_purchases.write()
-                        .start_purchase("testbed.subscription", None) {
+                        .start_purchase_for_account("testbed.subscription", None, "b91f6307-5cbe-4145-9042-45acdb7c2544") {
                         Ok(()) => reporter.waiting("in-app-purchases.entitlements", "checkout"),
                         Err(error) => {
                             reporter.result::<()>("in-app-purchases.entitlements", Err(error))

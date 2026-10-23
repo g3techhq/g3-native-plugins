@@ -108,6 +108,19 @@ public class InAppPurchasesPlugin: NSObject {
             publishPurchaseError("The purchase request could not be decoded.")
             return
         }
+        let accountToken: UUID?
+        if let supplied = payload["appAccountToken"] {
+            guard let raw = supplied as? String, raw.count == 36,
+                  let parsed = UUID(uuidString: raw),
+                  parsed.uuidString.lowercased() == raw.lowercased(),
+                  parsed.uuidString != "00000000-0000-0000-0000-000000000000" else {
+                publishPurchaseError("The purchase account must be a nonzero UUID.")
+                return
+            }
+            accountToken = parsed
+        } else {
+            accountToken = nil
+        }
         // offerId is accepted for a call site shared with Android and ignored:
         // StoreKit applies an introductory offer itself when the user qualifies,
         // and a promotional offer needs a server signature this cannot make.
@@ -118,7 +131,9 @@ public class InAppPurchasesPlugin: NSObject {
             }
             setPurchasing(true)
             do {
-                let result = try await product.purchase()
+                var options: Set<Product.PurchaseOption> = []
+                if let accountToken = accountToken { options.insert(.appAccountToken(accountToken)) }
+                let result = try await product.purchase(options: options)
                 switch result {
                 case .success(let verification):
                     guard case .verified = verification else {

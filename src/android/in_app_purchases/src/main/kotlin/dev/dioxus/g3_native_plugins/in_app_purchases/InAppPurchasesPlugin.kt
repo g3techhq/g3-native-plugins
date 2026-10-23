@@ -215,6 +215,25 @@ class InAppPurchasesPlugin(private val activity: Activity) {
     // ---- Purchase ----
 
     fun startPurchaseFromRust(productId: String, offerId: String) {
+        startPurchase(productId, offerId, null)
+    }
+
+    fun startPurchaseForAccountFromRust(payloadJson: String) {
+        try {
+            val payload = JSONObject(payloadJson)
+            val accountToken = payload.getString("appAccountToken").lowercase()
+            if (!Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}").matches(accountToken)
+                || accountToken == "00000000-0000-0000-0000-000000000000") {
+                publishEntitlementsError("The purchase account must be a nonzero UUID.")
+                return
+            }
+            startPurchase(payload.getString("productId"), payload.getString("offerId"), accountToken)
+        } catch (_: Exception) {
+            publishEntitlementsError("The account purchase request could not be decoded.")
+        }
+    }
+
+    private fun startPurchase(productId: String, offerId: String, accountToken: String?) {
         connect {
             val details = synchronized(lock) { known[productId] }
             if (details == null) {
@@ -234,9 +253,10 @@ class InAppPurchasesPlugin(private val activity: Activity) {
                     ?: offers.first()
                 builder.setOfferToken(chosen.offerToken)
             }
-            val params = BillingFlowParams.newBuilder()
+            val flow = BillingFlowParams.newBuilder()
                 .setProductDetailsParamsList(listOf(builder.build()))
-                .build()
+            if (accountToken != null) flow.setObfuscatedAccountId(accountToken)
+            val params = flow.build()
             synchronized(lock) { purchasing = true }
             // Play requires the real Activity; this has to be the main thread.
             activity.runOnUiThread {
@@ -301,6 +321,7 @@ class InAppPurchasesPlugin(private val activity: Activity) {
             // Rust side hands back to finish the transaction.
             .put("transactionId", purchase.purchaseToken)
             .put("purchaseToken", purchase.purchaseToken)
+            .put("appAccountToken", purchase.accountIdentifiers?.obfuscatedAccountId ?: JSONObject.NULL)
             .put("purchasedAtMs", purchase.purchaseTime)
             // Play tells the device nothing about when a subscription lapses.
             // That answer lives in the Play Developer API, server side.

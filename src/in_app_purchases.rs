@@ -94,7 +94,7 @@ pub struct Product {
     pub offers: Vec<SubscriptionOffer>,
 }
 /// Something the user owns.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entitlement {
     /// Which product was bought.
@@ -127,6 +127,66 @@ pub struct Entitlement {
     /// left unacknowledged for three days.
     pub needs_finishing: bool,
 }
+impl std::fmt::Debug for Entitlement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entitlement")
+            .field("product_id", &self.product_id)
+            .field("is_active", &self.is_active)
+            .field("will_auto_renew", &self.will_auto_renew)
+            .field("needs_finishing", &self.needs_finishing)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Store ownership with the optional app-account UUID supplied at purchase.
+/// This is an untrusted routing hint; verify the store's signed/server response
+/// and the expected account on your server before granting or finishing.
+#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttributedEntitlement {
+    /// Existing ownership/proof data, with the same wire fields as `Entitlement`.
+    #[serde(flatten)]
+    pub entitlement: Entitlement,
+    /// The original app account's opaque UUID. `None` for older/unattributed
+    /// purchases. Never substitute the currently signed-in account for `None`.
+    #[serde(default)]
+    pub app_account_token: Option<String>,
+}
+impl std::fmt::Debug for AttributedEntitlement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttributedEntitlement")
+            .field("entitlement", &self.entitlement)
+            .field(
+                "app_account_token",
+                &self.app_account_token.as_ref().map(|_| "[redacted]"),
+            )
+            .finish()
+    }
+}
+
+#[cfg(any(target_os = "android", target_os = "ios", test))]
+fn account_purchase_payload(
+    product: &str,
+    offer: Option<&str>,
+    account: &str,
+) -> Result<String, String> {
+    let bytes = account.as_bytes();
+    let canonical = bytes.len() == 36
+        && bytes.iter().enumerate().all(|(index, byte)| {
+            if [8, 13, 18, 23].contains(&index) {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+        && bytes.iter().any(|byte| *byte != b'-' && *byte != b'0');
+    if !canonical {
+        return Err("The purchase account must be a nonzero UUID.".into());
+    }
+    serde_json::to_string(&serde_json::json!({"productId":product,"offerId":offer.unwrap_or_default(),"appAccountToken":account.to_ascii_lowercase()}))
+        .map_err(|_| "Could not encode the purchase account.".into())
+}
+
 /// Google Play's short-lived attribution for one external content-link visit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -286,6 +346,27 @@ impl InAppPurchases {
         }
         Ok(())
     }
+    /// Start a purchase bound to an opaque app-account UUID from your backend.
+    /// iOS passes it to StoreKit's `appAccountToken`; Android uses the obfuscated
+    /// account ID. Do not pass an email or a raw database identifier. The UUID
+    /// must be stable for that account and never reused for a different person.
+    /// Results arrive through `poll_attributed_entitlements`; verify attribution
+    /// against the provider on your backend before delivery/finish.
+    pub fn start_purchase_for_account(
+        &mut self,
+        product_id: &str,
+        offer_id: Option<&str>,
+        account_token: &str,
+    ) -> Result<(), String> {
+        let payload = account_purchase_payload(product_id, offer_id, account_token)?;
+        let plugin = self.get_plugin()?;
+        #[cfg(target_os = "android")]
+        plugin.call_unit_str("startPurchaseForAccountFromRust", &payload)?;
+        #[cfg(target_os = "ios")]
+        startPurchaseFromRust(plugin, payload)?;
+        Ok(())
+    }
+
     /// Re-read what the user owns from the store.
     ///
     /// Needed on a new device or after a reinstall, and on iOS this is the call
@@ -315,6 +396,21 @@ impl InAppPurchases {
         };
         Self::decode(&json, "entitlements")
     }
+    /// Take the ownership batch together with original app-account hints.
+    /// Choose this or `poll_entitlements`: both consume the same shared slot.
+    /// Missing attribution stays `None`; it never inherits a launch/current user.
+    pub fn poll_attributed_entitlements(
+        &mut self,
+    ) -> Result<Option<Vec<AttributedEntitlement>>, String> {
+        let plugin = self.get_plugin()?;
+        #[cfg(target_os = "android")]
+        let taken = plugin.call_string("takeEntitlementsFromRust")?;
+        #[cfg(target_os = "ios")]
+        let taken = takeEntitlementsFromRust(plugin)?;
+        let Some(json) = taken else { return Ok(None) };
+        Self::decode(&json, "attributed entitlements")
+    }
+
     /// Tell the store the purchase has been delivered.
     ///
     /// Call this only after the entitlement is actually granted, because it is
@@ -442,6 +538,21 @@ impl InAppPurchases {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// No-op: no account-attributed store exists on these targets.
+    pub fn start_purchase_for_account(
+        &mut self,
+        _product_id: &str,
+        _offer_id: Option<&str>,
+        _account_token: &str,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    /// Always `None`: no account-attributed store exists on these targets.
+    pub fn poll_attributed_entitlements(
+        &mut self,
+    ) -> Result<Option<Vec<AttributedEntitlement>>, String> {
+        Ok(None)
+    }
     /// No-op.
     pub fn start_restore(&mut self) -> Result<(), String> {
         Ok(())
@@ -475,5 +586,63 @@ impl InAppPurchases {
     /// Always [`PurchaseState::Idle`].
     pub fn purchase_state(&mut self) -> PurchaseState {
         PurchaseState::Idle
+    }
+}
+
+#[cfg(test)]
+mod account_attribution_tests {
+    use super::*;
+    #[test]
+    fn account_payload_is_opaque_validated_and_serialized_as_data() {
+        let account = "B91F6307-5CBE-4145-9042-45ACDB7C2544";
+        let payload =
+            account_purchase_payload("product\"private", Some("offer\\value"), account).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(value["appAccountToken"], account.to_ascii_lowercase());
+        assert_eq!(value["productId"], "product\"private");
+        assert_eq!(value["offerId"], "offer\\value");
+        for bad in [
+            "",
+            "private@example.invalid",
+            "user:private",
+            "00000000-0000-0000-0000-000000000000",
+            "b91f6307-5cbe-4145-9042-45acdb7c254z",
+        ] {
+            assert!(account_purchase_payload("product", None, bad).is_err());
+        }
+    }
+    #[test]
+    fn old_batches_keep_missing_attribution_and_debug_never_prints_proofs_or_ids() {
+        let mut item = AttributedEntitlement {
+            entitlement: Entitlement {
+                transaction_id: "private-transaction-canary".into(),
+                purchase_token: "private-proof-canary".into(),
+                ..Default::default()
+            },
+            app_account_token: Some("private-account-canary".into()),
+        };
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(json.contains("private-proof-canary"));
+        let decoded: AttributedEntitlement = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, item);
+        let old: Entitlement = serde_json::from_str(&json).unwrap();
+        assert_eq!(old, item.entitlement);
+        let debug = format!("{item:?}");
+        for secret in [
+            "private-transaction-canary",
+            "private-proof-canary",
+            "private-account-canary",
+        ] {
+            assert!(!debug.contains(secret));
+        }
+        item.app_account_token = None;
+        let mut old = serde_json::to_value(&item).unwrap();
+        old.as_object_mut().unwrap().remove("appAccountToken");
+        assert!(
+            serde_json::from_value::<AttributedEntitlement>(old)
+                .unwrap()
+                .app_account_token
+                .is_none()
+        );
     }
 }

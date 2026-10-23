@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- In-app purchases: `start_purchase_for_account` supplies an opaque UUID to
+  StoreKit/Play account attribution. `poll_attributed_entitlements` keeps optional
+  original-account hints without changing existing `Entitlement` wire fields or
+  the legacy purchase API. Missing metadata stays absent. Purchase `Debug` output
+  now redacts proofs, transaction identifiers and account tokens.
+
 - `app-info`: read the installed iOS/Android identifier, display version and native
   build through `installed_app_info()`. Returns `None` on other platforms.
 

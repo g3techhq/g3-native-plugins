@@ -96,7 +96,7 @@ cfg_if::cfg_if! {
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "in-app-purchases")] { mod in_app_purchases;
-    #[allow(unused_imports)] pub use in_app_purchases::{Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
+    #[allow(unused_imports)] pub use in_app_purchases::{AttributedEntitlement, Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
     #[allow(unused_imports)] pub use in_app_purchases::InAppPurchases; }
 }
@@ -591,7 +591,7 @@ mod tests {
         assert!(source.contains("pub fn launch_external_content_link"));
         assert!(
             production_source(include_str!("lib.rs"))
-                .contains("pub use in_app_purchases::{Entitlement, ExternalContentLinkToken")
+                .contains("pub use in_app_purchases::{AttributedEntitlement, Entitlement, ExternalContentLinkToken")
         );
         assert!(source.contains("pub fn finish(&mut self, transaction_id: &str, consume: bool)"),);
         assert!(source.contains("Subscription"));
@@ -620,6 +620,27 @@ mod tests {
         assert!(swift.contains("jwsRepresentation"));
         assert!(swift.contains("renewal.willAutoRenew"));
         assert!(store.contains("nonRenewable"));
+    }
+    #[test]
+    fn purchase_account_attribution_contract_matches_each_platform() {
+        let rust = production_source(include_str!("in_app_purchases.rs"));
+        let kotlin = include_str!(
+            "android/in_app_purchases/src/main/kotlin/dev/dioxus/g3_native_plugins/in_app_purchases/InAppPurchasesPlugin.kt"
+        );
+        let swift = include_str!("ios/Sources/InAppPurchasesPlugin.swift");
+        let catalogue = include_str!("ios/Sources/StoreCatalogue.swift");
+        assert!(rust.contains("pub fn start_purchase_for_account"));
+        assert!(rust.contains("pub fn poll_attributed_entitlements"));
+        assert!(rust.contains("call_unit_str(\"startPurchaseForAccountFromRust\", &payload)"));
+        assert!(kotlin.contains("fun startPurchaseForAccountFromRust(payloadJson: String)"));
+        assert!(kotlin.contains("setObfuscatedAccountId(accountToken)"));
+        assert!(kotlin.contains("accountIdentifiers?.obfuscatedAccountId"));
+        assert!(swift.contains("payload[\"appAccountToken\"]"));
+        assert!(swift.contains(".appAccountToken(accountToken)"));
+        assert!(catalogue.contains("transaction.appAccountToken"));
+        for source in [rust, kotlin, catalogue] {
+            assert!(source.contains("appAccountToken"));
+        }
     }
     #[test]
     fn ios_media_plugin_owns_background_audio_and_lock_screen_controls() {

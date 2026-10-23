@@ -202,7 +202,11 @@ fn Harness() -> Element {
                 Err(error) => reporter.record("in-app-purchases.products", Status::Fail, error),
                 Ok(None) => {}
             }
-            match plugins.in_app_purchases.write().poll_entitlements() {
+            match plugins
+                .in_app_purchases
+                .write()
+                .poll_attributed_entitlements()
+            {
                 Ok(Some(owned)) => reporter.record(
                     "in-app-purchases.entitlements",
                     Status::Pass,
@@ -211,7 +215,7 @@ fn Harness() -> Element {
                     } else {
                         owned
                             .iter()
-                            .map(|item| item.product_id.clone())
+                            .map(|item| item.entitlement.product_id.clone())
                             .collect::<Vec<_>>()
                             .join(", ")
                     },

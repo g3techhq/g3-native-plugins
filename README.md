@@ -323,6 +323,18 @@ completed while the app was closed — an interrupted payment, a family-shared
 buy, a renewal, a purchase a parent approved hours later — and only a listener
 already running catches them. That is why `prepare()` belongs at startup.
 
+Apps with accounts should use `start_purchase_for_account(product, offer, account_token)`
+and `poll_attributed_entitlements()`. Supply a stable opaque UUID issued by your
+backend for the reviewed app account; use neither an email nor a raw database ID.
+iOS sends it as StoreKit's `appAccountToken`, Android as Play's obfuscated account
+ID. Both attributed and ordinary polling consume the same slot; choose one.
+Older purchases have `app_account_token: None`; never assign them automatically
+to whoever is currently signed in. Confirm attribution against Apple's/Google's
+server response and your original ownership records before granting or finishing.
+Transfers and legacy assistance are host policy. `Debug` output redacts purchase
+proofs, transaction IDs and account tokens; serialization preserves backend proofs.
+The testbed buy control uses a fixed synthetic UUID, not a production account.
+
 **Finish every purchase.** `finish()` is the store's record that the user got
 what they paid for. Android refunds anything left unacknowledged for three
 days. Pass `consume: true` only for a consumable, so it can be bought again.

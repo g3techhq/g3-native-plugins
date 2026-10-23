@@ -98,6 +98,7 @@ enum StoreCatalogue {
             "productId": transaction.productID,
             "transactionId": String(transaction.id),
             "purchaseToken": jws,
+            "appAccountToken": transaction.appAccountToken.map { $0.uuidString.lowercased() } ?? NSNull(),
             "purchasedAtMs": Int(transaction.purchaseDate.timeIntervalSince1970 * 1000),
             "expiresAtMs": expiry.map { Int($0.timeIntervalSince1970 * 1000) } ?? NSNull(),
             "isActive": active,

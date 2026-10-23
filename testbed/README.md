@@ -132,6 +132,17 @@ configured — camera work on iOS needs a real device.
 
 ## What still needs a real account or device
 
+The purchase button uses a fixed synthetic UUID to exercise the account-bound
+bridge. A consuming app must obtain its own opaque account token from its server,
+verify the token in the provider response, and keep restored purchases with their
+original account. The token shown here does not authorize any entitlement.
+
+For the account attribution change, `just pre-push`, the Android target check and
+the packaged Android testbed build passed on Windows. A licensed Play purchase,
+account-switch restore and the Apple build/store flow have not been run for this
+change. Source contract tests cover the Rust/Kotlin/Swift bridge but do not replace
+those device checks.
+
 - **In-app purchases** beyond connecting: products and a purchase flow need
   items configured in the Play Console and a licensed test account.
 - **Auth**: needs a Google client id or an Apple capability.
