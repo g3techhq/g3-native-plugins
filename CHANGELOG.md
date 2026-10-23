@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Storage: `set_durable` waits for the native encrypted checkpoint write before
+  reporting success, including Android disk-write failure. Browser and macOS
+  calls report an error, so sensitive retry data cannot fall into localStorage.
+
 - In-app purchases: `start_purchase_for_account` supplies an opaque UUID to
   StoreKit/Play account attribution. `poll_attributed_entitlements` keeps optional
   original-account hints without changing existing `Entitlement` wire fields or

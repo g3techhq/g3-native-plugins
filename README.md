@@ -195,6 +195,14 @@ Synchronous, unlike most plugins here, because both stores are: a Keychain
 lookup and a `SharedPreferences` read are ordinary in-process work and there is
 nothing to poll for.
 
+For a small retry checkpoint that must be written before acknowledging external
+work, use `set_durable(key, value)`. Android waits for the encrypted preferences
+commit and reports disk-write failure; iOS uses the Keychain write result. This
+can block the caller. The method returns an error on web/macOS, so it cannot
+silently persist a private checkpoint in browser storage. Ordinary `set` keeps
+Android's asynchronous disk write. No storage API protects against app removal,
+device loss or unavailable device keys.
+
 Values are held by the platform's own secret store — the Keychain on iOS, and
 on Android AES-GCM under a key generated in the hardware-backed Keystore, which
 will perform operations with it but never export it. That is what

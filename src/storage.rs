@@ -137,6 +137,21 @@ impl KeyValueStore {
             Self::check(setFromRust(plugin, entry)?)
         }
     }
+    /// Commit an encrypted native value before reporting success.
+    ///
+    /// Android waits for `SharedPreferences.commit` and reports a failed disk
+    /// write; iOS uses the synchronous Keychain result. Use this for small retry
+    /// checkpoints before acknowledging external work. It can block the caller.
+    /// Web and macOS return an error; this method never writes browser storage.
+    pub fn set_durable(&mut self, key: &str, value: &str) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        {
+            let plugin = self.get_plugin()?;
+            Self::check(plugin.call_string_str_str("setDurableFromRust", key, value)?)
+        }
+        #[cfg(target_os = "ios")]
+        self.set(key, value)
+    }
     /// Delete a value. Removing a key that is not there is not an error.
     pub fn remove(&mut self, key: &str) -> Result<(), String> {
         let plugin = self.get_plugin()?;
@@ -244,6 +259,10 @@ impl KeyValueStore {
             // private modes that refuse storage outright.
             .map_err(|_| "Unable to write to local storage".to_string())
     }
+    /// Reports an error: committed encrypted checkpoints require a native store.
+    pub fn set_durable(&mut self, _key: &str, _value: &str) -> Result<(), String> {
+        Err("Committed encrypted storage requires iOS or Android".to_string())
+    }
     /// Delete a value.
     pub fn remove(&mut self, key: &str) -> Result<(), String> {
         Self::store()?
@@ -299,6 +318,10 @@ impl KeyValueStore {
     }
     /// Reports an error rather than silently discarding the value.
     pub fn set(&mut self, _key: &str, _value: &str) -> Result<(), String> {
+        Self::unimplemented()
+    }
+    /// Reports an error: secure storage is not implemented here.
+    pub fn set_durable(&mut self, _key: &str, _value: &str) -> Result<(), String> {
         Self::unimplemented()
     }
     /// Reports an error.

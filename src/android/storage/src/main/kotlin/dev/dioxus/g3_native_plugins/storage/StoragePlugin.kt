@@ -116,6 +116,13 @@ class StoragePlugin(private val activity: Activity) {
         errorJson("Could not store '$key': ${failure.message}")
     }
 
+    fun setDurableFromRust(key: String, value: String): String? = try {
+        if (preferences.edit().putString(key, seal(value)).commit()) null
+        else errorJson("The encrypted checkpoint could not be committed.")
+    } catch (_: Exception) {
+        errorJson("The encrypted checkpoint could not be committed.")
+    }
+
     fun removeFromRust(key: String): String? = try {
         preferences.edit().remove(key).apply()
         null

@@ -73,7 +73,7 @@ fn Harness() -> Element {
         let round_trip = (|| -> Result<String, String> {
             let mut storage = plugins.storage.write();
             storage.prepare()?;
-            storage.set("testbed.key", "round-trip-value")?;
+            storage.set_durable("testbed.key", "round-trip-value")?;
             let read = storage.get("testbed.key")?;
             if read.as_deref() != Some("round-trip-value") {
                 return Err(format!("read back {read:?}, expected what was written"));

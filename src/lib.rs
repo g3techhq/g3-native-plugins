@@ -467,6 +467,20 @@ mod tests {
         let gradle = include_str!("android/storage/build.gradle.kts");
         assert!(source.contains("pub fn get(&mut self, key: &str)"));
         assert!(source.contains("pub fn set(&mut self, key: &str, value: &str)"));
+        assert!(source.contains("pub fn set_durable(&mut self, key: &str, value: &str)"));
+        assert!(source.contains("call_string_str_str(\"setDurableFromRust\", key, value)"));
+        assert!(source.contains("Committed encrypted storage requires iOS or Android"));
+        assert!(kotlin.contains("fun setDurableFromRust(key: String, value: String)"));
+        let durable = kotlin
+            .split("fun setDurableFromRust")
+            .nth(1)
+            .unwrap()
+            .split("fun removeFromRust")
+            .next()
+            .unwrap();
+        assert!(durable.contains("seal(value)).commit()"));
+        assert!(!durable.contains(".apply()"));
+        assert!(durable.contains("else errorJson("));
         assert!(source.contains("pub fn keys(&mut self)"));
         // Public so an app can read configuration before `dioxus::launch`.
         assert!(source.contains("pub fn new() -> Self"));

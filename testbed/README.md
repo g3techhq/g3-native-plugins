@@ -143,6 +143,11 @@ account-switch restore and the Apple build/store flow have not been run for this
 change. Source contract tests cover the Rust/Kotlin/Swift bridge but do not replace
 those device checks.
 
+The storage self-test now uses `set_durable` for its round trip. That API's
+pre-push and packaged Android build checks pass. The updated self-test has not
+been executed on a device; disk-failure behavior and provisioned iOS Keychain
+execution remain device checks.
+
 - **In-app purchases** beyond connecting: products and a purchase flow need
   items configured in the Play Console and a licensed test account.
 - **Auth**: needs a Google client id or an Apple capability.
