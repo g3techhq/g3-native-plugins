@@ -73,6 +73,13 @@ fn Harness() -> Element {
         let round_trip = (|| -> Result<String, String> {
             let mut storage = plugins.storage.write();
             storage.prepare()?;
+            // A second launch also checks that the previous successful native
+            // deletion survived process death, before writing the probe again.
+            if storage.get("testbed.durable-removal-probe")?.is_some() {
+                return Err("a completed deletion returned after restart".into());
+            }
+            storage.set_durable("testbed.durable-removal-probe", "synthetic-removal-probe")?;
+            storage.remove_durable("testbed.durable-removal-probe")?;
             storage.set_durable("testbed.key", "round-trip-value")?;
             let read = storage.get("testbed.key")?;
             if read.as_deref() != Some("round-trip-value") {
@@ -82,9 +89,9 @@ fn Harness() -> Element {
             if !keys.iter().any(|key| key == "testbed.key") {
                 return Err(format!("keys() omitted the key just written: {keys:?}"));
             }
-            storage.remove("testbed.key")?;
+            storage.remove_durable("testbed.key")?;
             if storage.get("testbed.key")?.is_some() {
-                return Err("value survived remove()".to_string());
+                return Err("value survived durable removal".to_string());
             }
             Ok("wrote, read, listed and deleted through the Keystore".to_string())
         })();

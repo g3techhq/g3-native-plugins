@@ -481,6 +481,19 @@ mod tests {
         assert!(durable.contains("seal(value)).commit()"));
         assert!(!durable.contains(".apply()"));
         assert!(durable.contains("else errorJson("));
+        assert!(source.contains("pub fn remove_durable(&mut self, key: &str)"));
+        assert!(source.contains("call_string_str(\"removeDurableFromRust\", key)"));
+        let removal = kotlin
+            .split("fun removeDurableFromRust")
+            .nth(1)
+            .unwrap()
+            .split("fun clearFromRust")
+            .next()
+            .unwrap();
+        assert!(removal.contains("remove(key).commit()"));
+        assert!(!removal.contains(".apply()"));
+        assert!(removal.contains("else errorJson("));
+        assert!(removal.contains("catch (_: Exception)"));
         assert!(source.contains("pub fn keys(&mut self)"));
         // Public so an app can read configuration before `dioxus::launch`.
         assert!(source.contains("pub fn new() -> Self"));

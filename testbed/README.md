@@ -158,3 +158,12 @@ execution remain device checks.
   service, so confirm them by eye or with `adb shell dumpsys`.
 - **iOS Keychain storage**: needs a provisioned build carrying the signed
   application identifier; the Dioxus 0.7.9 simulator bundle is ad-hoc signed.
+
+### Durable storage deletion check
+
+On Android, the automatic storage check writes and removes an encrypted probe
+using `set_durable` and `remove_durable`. Force-stop and reopen the test bed: the
+next run first checks that the removed probe has stayed absent. Both launches
+passed on an API 35 x86_64 emulator during the privacy rollout. The iOS wrapper
+uses the existing Keychain deletion result; this new entry point has not yet
+been run on an Apple device.

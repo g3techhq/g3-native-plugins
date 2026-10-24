@@ -130,6 +130,13 @@ class StoragePlugin(private val activity: Activity) {
         errorJson("Could not remove '$key': ${failure.message}")
     }
 
+    fun removeDurableFromRust(key: String): String? = try {
+        if (preferences.edit().remove(key).commit()) null
+        else errorJson("The encrypted value could not be removed from disk.")
+    } catch (_: Exception) {
+        errorJson("The encrypted value could not be removed from disk.")
+    }
+
     fun clearFromRust(): String? = try {
         preferences.edit().clear().apply()
         null

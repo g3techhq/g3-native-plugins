@@ -200,7 +200,10 @@ work, use `set_durable(key, value)`. Android waits for the encrypted preferences
 commit and reports disk-write failure; iOS uses the Keychain write result. This
 can block the caller. The method returns an error on web/macOS, so it cannot
 silently persist a private checkpoint in browser storage. Ordinary `set` keeps
-Android's asynchronous disk write. No storage API protects against app removal,
+Android's asynchronous disk write. Use `remove_durable(key)` for the matching
+encrypted deletion checkpoint; Android waits for its commit and iOS uses the
+Keychain deletion result. It also refuses web/macOS calls. Ordinary `remove`
+keeps its asynchronous Android behavior. No storage API protects against app removal,
 device loss or unavailable device keys.
 
 Values are held by the platform's own secret store — the Keychain on iOS, and

@@ -160,6 +160,18 @@ impl KeyValueStore {
         #[cfg(target_os = "ios")]
         return Self::check(removeFromRust(plugin, key.to_string())?);
     }
+    /// Delete an encrypted native value and wait for the platform write result.
+    /// Android uses a synchronous preferences commit; iOS uses Keychain deletion.
+    /// Use for cleanup checkpoints whose success must survive process restart.
+    pub fn remove_durable(&mut self, key: &str) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        {
+            let plugin = self.get_plugin()?;
+            Self::check(plugin.call_string_str("removeDurableFromRust", key)?)
+        }
+        #[cfg(target_os = "ios")]
+        self.remove(key)
+    }
     /// Delete everything this app stored.
     ///
     /// Scoped to this app: it cannot reach another app's Keychain items or
@@ -269,6 +281,10 @@ impl KeyValueStore {
             .remove_item(key)
             .map_err(|_| "Unable to remove from local storage".to_string())
     }
+    /// Reports an error: committed encrypted removal requires a native store.
+    pub fn remove_durable(&mut self, _key: &str) -> Result<(), String> {
+        Err("Committed encrypted storage requires iOS or Android".to_string())
+    }
     /// Delete everything on this origin.
     pub fn clear(&mut self) -> Result<(), String> {
         Self::store()?
@@ -326,6 +342,10 @@ impl KeyValueStore {
     }
     /// Reports an error.
     pub fn remove(&mut self, _key: &str) -> Result<(), String> {
+        Self::unimplemented()
+    }
+    /// Reports an error: secure storage is not implemented here.
+    pub fn remove_durable(&mut self, _key: &str) -> Result<(), String> {
         Self::unimplemented()
     }
     /// Reports an error.

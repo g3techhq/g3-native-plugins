@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Storage: `remove_durable` waits for native encrypted deletion, including Android
+  commit failure. Browser/macOS calls report an error. Privacy cleanup can verify
+  removal without relying on Android's asynchronous `remove` behavior.
+
 - Storage: `set_durable` waits for the native encrypted checkpoint write before
   reporting success, including Android disk-write failure. Browser and macOS
   calls report an error, so sensitive retry data cannot fall into localStorage.
