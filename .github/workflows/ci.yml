@@ -43,7 +43,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Install Dioxus CLI
-        run: cargo install dioxus-cli --version 0.7.9 --locked
+        # The fork's CLI, to match the fork's Dioxus: dx and the dioxus crates
+        # must come from the same source.
+        run: cargo install --git https://github.com/Gateway3B/dioxus --branch main dioxus-cli --locked
       - name: Build Android testbed including Kotlin plugins
         working-directory: testbed
         run: dx build --android --target aarch64-linux-android --fullstack false
@@ -66,7 +68,9 @@ jobs:
       - name: Check iOS Simulator target
         run: cargo check --target aarch64-apple-ios-sim --all-features
       - name: Install Dioxus CLI
-        run: cargo install dioxus-cli --version 0.7.9 --locked
+        # The fork's CLI, to match the fork's Dioxus: dx and the dioxus crates
+        # must come from the same source.
+        run: cargo install --git https://github.com/Gateway3B/dioxus --branch main dioxus-cli --locked
       - name: Build iOS Simulator testbed including Swift plugins
         working-directory: testbed
         run: dx build --ios --target aarch64-apple-ios-sim --fullstack false --codesign false
