@@ -9,7 +9,7 @@ publish = false
 [workspace]
 
 [dependencies]
-dioxus = { version = "=0.7.9", features = [] }
+dioxus = { version = "=0.8.0-alpha.3", features = [] }
 g3-native-plugins = { path = "..", features = [
     "app-info",
     "auth",
@@ -32,3 +32,12 @@ default = ["mobile"]
 web = ["dioxus/web"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
+
+# The test bed is its own workspace root, so it needs its own patch: the
+# library's does not apply when Cargo resolves from here.
+[patch.crates-io]
+# Dioxus fork (upstream main + g3 commits; see G3-PATCHES.md there). Local
+# builds use the sibling checkouts via Projects/.cargo/config.toml.
+dioxus = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+dioxus-signals = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+manganis = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }

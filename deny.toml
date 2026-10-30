@@ -40,4 +40,5 @@ skip-tree = []
 unknown-registry = "deny"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+# Dioxus comes from the fork until 0.8.0 is on crates.io.
+allow-git = ["https://github.com/Gateway3B/dioxus"]

@@ -17,10 +17,10 @@ name = "g3_native_plugins"
 path = "src/lib.rs"
 
 [dependencies]
-manganis = "=0.7.9"
+manganis = "=0.8.0-alpha.3"
 cfg-if = "1.0.0"
-dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "hooks"] }
-dioxus-signals = "=0.7.9"
+dioxus = { version = "=0.8.0-alpha.3", default-features = false, features = ["macro", "hooks"] }
+dioxus-signals = "=0.8.0-alpha.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # The updater's verification: pure Rust with no C to cross-compile, so the
@@ -36,7 +36,9 @@ wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Location", "Navigator", "Storage", "Window"] }
 
 [target.'cfg(target_os="android")'.dependencies]
-jni = "0.21.0"
+# The fork's manganis hands `with_activity` callers its own `JNIEnv`, built
+# against jni 0.21.1; asking for at least that keeps the two one crate.
+jni = "0.21.1"
 ndk-context = "0.1.1"
 
 [features]
@@ -60,3 +62,10 @@ push-notifications = ["notifications"]
 safe-area = []
 storage = []
 updater = ["dep:minisign-verify", "dep:semver", "dep:sha2"]
+
+[patch.crates-io]
+# Dioxus fork (upstream main + g3 commits; see G3-PATCHES.md there). Local
+# builds use the sibling checkouts via Projects/.cargo/config.toml.
+dioxus = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+dioxus-signals = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+manganis = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
