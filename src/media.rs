@@ -3,11 +3,6 @@
 unsafe extern "Kotlin" {
     pub type MediaPlugin;
 }
-#[cfg(target_os = "android")]
-use jni::{
-    JavaVM,
-    objects::{GlobalRef, JClass, JObject, JValue},
-};
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
@@ -31,8 +26,7 @@ const MEDIA_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.media.MediaPlugin
 /// The web and macOS builds are inert, so callers need no cfg of their own.
 #[cfg(target_os = "android")]
 pub struct Media {
-    plugin: Option<GlobalRef>,
-    vm: Option<JavaVM>,
+    plugin: Option<crate::android_bridge::AndroidPlugin>,
 }
 #[cfg(target_os = "ios")]
 /// Native media-session support for iOS.
@@ -45,118 +39,44 @@ pub struct Media;
 #[cfg(target_os = "android")]
 impl Media {
     pub(crate) fn new() -> Self {
-        Self {
-            plugin: None,
-            vm: None,
-        }
+        Self { plugin: None }
     }
-    fn get_plugin(&mut self) -> Result<GlobalRef, String> {
+    fn get_plugin(&mut self) -> Result<&crate::android_bridge::AndroidPlugin, String> {
         if self.plugin.is_none() {
-            let android = ndk_context::android_context();
-            let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
-                .map_err(|error| format!("Failed to access Android VM: {error}"))?;
-            let mut env = vm
-                .attach_current_thread_permanently()
-                .map_err(|error| format!("Failed to attach media plugin thread: {error}"))?;
-            let activity = unsafe { JObject::from_raw(android.context().cast()) };
-            let loader = env
-                .call_method(
-                    &activity,
-                    "getClassLoader",
-                    "()Ljava/lang/ClassLoader;",
-                    &[],
-                )
-                .and_then(|value| value.l())
-                .map_err(|error| format!("Failed to obtain app class loader: {error}"))?;
-            let name = env
-                .new_string(MEDIA_PLUGIN_CLASS)
-                .map_err(|error| format!("Failed to create media plugin class name: {error}"))?;
-            let name_object = JObject::from(name);
-            let class_object = env
-                .call_method(
-                    loader,
-                    "loadClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
-                    &[JValue::Object(&name_object)],
-                )
-                .and_then(|value| value.l())
-                .map_err(|error| format!("Failed to load MediaPlugin: {error}"))?;
-            let class = JClass::from(class_object);
-            let instance = env
-                .new_object(
-                    class,
-                    "(Landroid/app/Activity;)V",
-                    &[JValue::Object(&activity)],
-                )
-                .map_err(|error| format!("Failed to create MediaPlugin: {error}"))?;
-            self.plugin = Some(
-                env.new_global_ref(instance)
-                    .map_err(|error| format!("Failed to retain MediaPlugin: {error}"))?,
-            );
-            self.vm = Some(vm);
-            std::mem::forget(activity);
+            self.plugin = Some(crate::android_bridge::AndroidPlugin::new(
+                MEDIA_PLUGIN_CLASS,
+            )?);
         }
-        Ok(self.plugin.as_ref().unwrap().clone())
-    }
-    fn env(&self) -> Result<jni::JNIEnv<'_>, String> {
-        let vm = self
-            .vm
-            .as_ref()
-            .ok_or_else(|| "Media plugin VM is not initialized".to_string())?;
-        vm.attach_current_thread_permanently()
-            .map_err(|error| format!("Failed to attach media plugin thread: {error}"))
+        Ok(self.plugin.as_ref().unwrap())
     }
     /// Initializes Android media-session support.
     pub fn prepare(&mut self) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        env.call_method(plugin.as_obj(), "prepareFromRust", "()V", &[])
-            .map_err(|error| format!("Failed to prepare media plugin: {error}"))?;
-        Ok(())
+        // Kept: the Kotlin plugin releases its session and listeners when its
+        // Activity is destroyed, so a recreated Activity needs them again.
+        // Playback state is not replayed; the page reports it afresh.
+        self.get_plugin()?
+            .keep_unit("prepareFromRust")
+            .map_err(|error| format!("Failed to prepare media plugin: {error}"))
     }
     /// Requests picture-in-picture using the supplied source dimensions.
     pub fn enter_picture_in_picture(&mut self, width: i32, height: i32) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        env.call_method(
-            plugin.as_obj(),
-            "enterPictureInPictureFromRust",
-            "(II)V",
-            &[JValue::Int(width), JValue::Int(height)],
-        )
-        .map_err(|error| format!("Failed to enter picture-in-picture: {error}"))?;
-        Ok(())
+        self.get_plugin()?
+            .call_unit_int_int("enterPictureInPictureFromRust", width, height)
+            .map_err(|error| format!("Failed to enter picture-in-picture: {error}"))
     }
     /// Requests a device orientation such as `portrait` or `landscape`.
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        let orientation = env
-            .new_string(orientation.into())
-            .map_err(|error| format!("Failed to prepare orientation: {error}"))?;
-        let orientation = JObject::from(orientation);
-        env.call_method(
-            plugin.as_obj(),
-            "setOrientationFromRust",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&orientation)],
-        )
-        .map_err(|error| format!("Failed to set orientation: {error}"))?;
-        Ok(())
+        let orientation = orientation.into();
+        self.get_plugin()?
+            .call_unit_str("setOrientationFromRust", &orientation)
+            .map_err(|error| format!("Failed to set orientation: {error}"))
     }
     /// Hides or restores the status and navigation bars, for fullscreen
     /// playback. A WebView's own fullscreen stops at the WebView's bounds.
     pub fn set_system_bars_hidden(&mut self, hidden: bool) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        env.call_method(
-            plugin.as_obj(),
-            "setSystemBarsHiddenFromRust",
-            "(Z)V",
-            &[JValue::Bool(hidden.into())],
-        )
-        .map_err(|error| format!("Failed to update system bars: {error}"))?;
-        Ok(())
+        self.get_plugin()?
+            .call_unit_bool("setSystemBarsHiddenFromRust", hidden)
+            .map_err(|error| format!("Failed to update system bars: {error}"))
     }
     /// Publishes or clears an active background-playback session.
     pub fn set_playback_active(
@@ -164,30 +84,18 @@ impl Media {
         active: bool,
         title: impl Into<String>,
     ) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        let title = env
-            .new_string(title.into())
-            .map_err(|error| format!("Failed to prepare playback title: {error}"))?;
-        let title = JObject::from(title);
-        env.call_method(
-            plugin.as_obj(),
-            "setPlaybackActiveFromRust",
-            "(ZLjava/lang/String;)V",
-            &[JValue::Bool(active.into()), JValue::Object(&title)],
-        )
-        .map_err(|error| format!("Failed to update background playback: {error}"))?;
-        Ok(())
+        let title = title.into();
+        self.get_plugin()?
+            .call_unit_bool_str("setPlaybackActiveFromRust", active, &title)
+            .map_err(|error| format!("Failed to update background playback: {error}"))
     }
     /// Removes the media session and its controls once the player is gone.
     /// An inactive [`Media::set_playback_active`] only pauses them, so the
     /// system player and a headset can still resume playback.
     pub fn clear_playback(&mut self) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let mut env = self.env()?;
-        env.call_method(plugin.as_obj(), "clearPlaybackFromRust", "()V", &[])
-            .map_err(|error| format!("Failed to clear background playback: {error}"))?;
-        Ok(())
+        self.get_plugin()?
+            .call_unit("clearPlaybackFromRust")
+            .map_err(|error| format!("Failed to clear background playback: {error}"))
     }
 }
 #[cfg(target_os = "ios")]

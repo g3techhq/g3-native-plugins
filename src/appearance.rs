@@ -69,7 +69,7 @@ impl SystemAppearance {
             let plugin = self
                 .plugin()
                 .ok_or_else(|| "The appearance plugin is unavailable".to_string())?;
-            plugin.call_unit_bool("setDarkBarIconsFromRust", dark)
+            plugin.keep_unit_bool("setDarkBarIconsFromRust", dark)
         }
         #[cfg(not(target_os = "android"))]
         {

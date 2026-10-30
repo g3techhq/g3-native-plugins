@@ -11,11 +11,6 @@ unsafe extern "Swift" {
     pub fn fallThroughFromRust(this: &BackButtonPlugin);
 }
 #[cfg(target_os = "android")]
-use jni::{
-    JavaVM,
-    objects::{GlobalRef, JClass, JObject, JValue},
-};
-#[cfg(target_os = "android")]
 const BACK_BUTTON_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.back_button.BackButtonPlugin";
 /// DOM event dispatched on `window` for an intercepted system-back request.
 ///
@@ -53,7 +48,7 @@ pub const NATIVE_BACK_EVENT: &str = "g3nativeback";
 /// both are no-ops and callers need no cfg of their own.
 #[cfg(target_os = "android")]
 pub struct BackButton {
-    plugin: Option<GlobalRef>,
+    plugin: Option<crate::android_bridge::AndroidPlugin>,
     intercepting: bool,
 }
 #[cfg(target_os = "ios")]
@@ -80,50 +75,11 @@ impl BackButton {
             intercepting: false,
         }
     }
-    fn get_plugin(&mut self) -> Result<&GlobalRef, String> {
+    fn get_plugin(&mut self) -> Result<&crate::android_bridge::AndroidPlugin, String> {
         if self.plugin.is_none() {
-            let android = ndk_context::android_context();
-            let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
-                .map_err(|error| format!("Failed to access Android VM: {error}"))?;
-            let mut env = vm
-                .attach_current_thread_permanently()
-                .map_err(|error| format!("Failed to attach plugin thread: {error}"))?;
-            let activity = unsafe { JObject::from_raw(android.context().cast()) };
-            let loader = env
-                .call_method(
-                    &activity,
-                    "getClassLoader",
-                    "()Ljava/lang/ClassLoader;",
-                    &[],
-                )
-                .and_then(|value| value.l())
-                .map_err(|error| format!("Failed to obtain app class loader: {error}"))?;
-            let name = env
-                .new_string(BACK_BUTTON_PLUGIN_CLASS)
-                .map_err(|error| format!("Failed to create plugin class name: {error}"))?;
-            let name_object = JObject::from(name);
-            let class_object = env
-                .call_method(
-                    loader,
-                    "loadClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
-                    &[JValue::Object(&name_object)],
-                )
-                .and_then(|value| value.l())
-                .map_err(|error| format!("Failed to load BackButtonPlugin: {error}"))?;
-            let class = JClass::from(class_object);
-            let instance = env
-                .new_object(
-                    class,
-                    "(Landroid/app/Activity;)V",
-                    &[JValue::Object(&activity)],
-                )
-                .map_err(|error| format!("Failed to create BackButtonPlugin: {error}"))?;
-            self.plugin = Some(
-                env.new_global_ref(instance)
-                    .map_err(|error| format!("Failed to retain BackButtonPlugin: {error}"))?,
-            );
-            std::mem::forget(activity);
+            self.plugin = Some(crate::android_bridge::AndroidPlugin::new(
+                BACK_BUTTON_PLUGIN_CLASS,
+            )?);
         }
         Ok(self.plugin.as_ref().unwrap())
     }
@@ -140,20 +96,11 @@ impl BackButton {
         if self.intercepting == intercepting {
             return Ok(());
         }
-        let plugin = self.get_plugin()?;
-        let android = ndk_context::android_context();
-        let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
-            .map_err(|error| format!("Failed to access Android VM: {error}"))?;
-        let mut env = vm
-            .attach_current_thread_permanently()
-            .map_err(|error| format!("Failed to attach plugin thread: {error}"))?;
-        env.call_method(
-            plugin.as_obj(),
-            "setInterceptingFromRust",
-            "(Z)V",
-            &[JValue::Bool(intercepting.into())],
-        )
-        .map_err(|error| format!("Failed to update Back interception: {error}"))?;
+        // Kept, so an Activity recreated on rotation gets its own callback in
+        // the same state: the old one went with the old Activity.
+        self.get_plugin()?
+            .keep_unit_bool("setInterceptingFromRust", intercepting)
+            .map_err(|error| format!("Failed to update Back interception: {error}"))?;
         self.intercepting = intercepting;
         Ok(())
     }
@@ -164,16 +111,9 @@ impl BackButton {
     /// the press. The native callback is disabled only for the redispatch, so
     /// it cannot recursively receive its own event.
     pub fn fall_through(&mut self) -> Result<(), String> {
-        let plugin = self.get_plugin()?;
-        let android = ndk_context::android_context();
-        let vm = unsafe { JavaVM::from_raw(android.vm().cast()) }
-            .map_err(|error| format!("Failed to access Android VM: {error}"))?;
-        let mut env = vm
-            .attach_current_thread_permanently()
-            .map_err(|error| format!("Failed to attach plugin thread: {error}"))?;
-        env.call_method(plugin.as_obj(), "fallThroughFromRust", "()V", &[])
-            .map_err(|error| format!("Failed to pass Back to Android: {error}"))?;
-        Ok(())
+        self.get_plugin()?
+            .call_unit("fallThroughFromRust")
+            .map_err(|error| format!("Failed to pass Back to Android: {error}"))
     }
     /// Returns whether system-back interception is enabled.
     pub fn is_intercepting(&self) -> bool {

@@ -43,7 +43,7 @@ impl SafeArea {
     pub fn start(&mut self) -> Result<(), String> {
         #[cfg(target_os = "android")]
         {
-            self.plugin()?.call_unit("startFromRust")
+            self.plugin()?.keep_unit("startFromRust")
         }
         #[cfg(not(target_os = "android"))]
         Ok(())
@@ -56,7 +56,7 @@ impl SafeArea {
         #[cfg(target_os = "android")]
         {
             self.plugin()?
-                .call_unit_bool("setBarsHiddenFromRust", hidden)
+                .keep_unit_bool("setBarsHiddenFromRust", hidden)
         }
         #[cfg(not(target_os = "android"))]
         {

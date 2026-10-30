@@ -18,12 +18,14 @@
         feature = "app-info",
         feature = "appearance",
         feature = "auth",
+        feature = "back-button",
         feature = "camera-microphone",
         feature = "clipboard",
         feature = "deep-links",
         feature = "external-url",
         feature = "geolocation",
         feature = "in-app-purchases",
+        feature = "media",
         feature = "notifications",
         feature = "safe-area",
         feature = "storage",
@@ -426,20 +428,29 @@ mod tests {
         let bridge = include_str!("android_bridge.rs");
         assert!(bridge.contains("getClassLoader"));
         assert!(bridge.contains("loadClass"));
+        // On the Dioxus fork `ndk_context` holds the Application, and Android
+        // recreates the Activity on rotation: plugins are built with the
+        // current Activity and rebuilt when it changes.
+        assert!(bridge.contains("manganis::android::with_activity"));
+        assert!(bridge.contains("is_same_object"));
+        assert!(!bridge.contains(".context()"));
         for source in [
             include_str!("auth.rs"),
+            include_str!("back_button.rs"),
             include_str!("camera_microphone.rs"),
             include_str!("clipboard.rs"),
             include_str!("deep_links.rs"),
             include_str!("external_url.rs"),
             include_str!("geolocation.rs"),
             include_str!("in_app_purchases.rs"),
+            include_str!("media.rs"),
             include_str!("notifications.rs"),
             include_str!("push_notifications.rs"),
             include_str!("storage.rs"),
             include_str!("updater.rs"),
         ] {
             let production = production_source(source);
+            assert!(!production.contains("android_context()"));
             let android = production
                 .split("unsafe extern \"Kotlin\" {")
                 .nth(1)
@@ -839,7 +850,8 @@ mod tests {
             "android/media/src/main/kotlin/dev/dioxus/g3_native_plugins/media/PlaybackService.kt",
         );
         let manifest = include_str!("android/media/src/main/AndroidManifest.xml");
-        assert!(rust.contains("getClassLoader"));
+        assert!(rust.contains("crate::android_bridge::AndroidPlugin"));
+        assert!(rust.contains("keep_unit(\"prepareFromRust\")"));
         assert!(rust.contains("enter_picture_in_picture"));
         assert!(rust.contains("set_orientation"));
         assert!(rust.contains("set_system_bars_hidden"));

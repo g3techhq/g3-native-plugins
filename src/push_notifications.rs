@@ -222,7 +222,7 @@ impl PushNotifications {
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         #[cfg(target_os = "android")]
-        plugin.call_unit("prepareFromRust")?;
+        plugin.keep_unit("prepareFromRust")?;
         #[cfg(target_os = "ios")]
         prepareFromRust(plugin)?;
         Ok(())
