@@ -45,6 +45,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renamed and fail with a `loadClass` error on a device. Debug builds never
   showed it, because the failure was release-only.
 
+- Android media: a headset's Play/Pause asks the page whether the video is
+  paused instead of trusting the session's last state, which could stick on
+  "playing" and keep sending Pause. A paused player keeps its foreground
+  service for 20 minutes, so a resume from the background with the screen off
+  is no longer refused and a cached, frozen app can still answer the headset.
+
 ## [0.4.5] - 2026-10-18
 
 ### Fixed

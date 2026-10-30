@@ -21,8 +21,11 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Rational
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -46,6 +49,14 @@ class MediaPlugin(private val activity: Activity) {
         private const val COMMAND_PAUSE = "pause"
         private const val COMMAND_SEEK = "seek"
         private const val ARTWORK_MAX_PX = 512
+
+        /// How long a paused player keeps its foreground service: twice
+        /// Media3's default, for a longer break. Dropping it at once left a
+        /// paused app cached, then frozen: a headset's Play reached a process
+        /// that could not answer, and a resume from the background was refused
+        /// a new foreground start, so playback died with the screen off once
+        /// its buffer ran out.
+        private const val PAUSED_FOREGROUND_MS = 20 * 60 * 1000L
 
         /// Reads what the system media controls show straight from the player,
         /// so position and duration are the element's own rather than a copy
@@ -74,6 +85,10 @@ class MediaPlugin(private val activity: Activity) {
     private var playbackTitle = ""
     private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
     private var pendingWebPlaybackResume: Runnable? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingDetach: Runnable? = null
+    /// The notification last shown, for leaving foreground after a pause.
+    private var lastNotification: Notification? = null
     // The plugin is prepared from a running app, so it starts out resumed.
     private var activityResumed = true
 
@@ -259,6 +274,14 @@ class MediaPlugin(private val activity: Activity) {
             if (root.windowVisibility != View.VISIBLE) {
                 webView.dispatchWindowVisibilityChanged(View.VISIBLE)
             }
+            // The host paused the WebView and its timers with the Activity.
+            // Waiting for the page's own play event to resume them (through
+            // `setPlaybackActiveFromRust`) asked a paused page to report that
+            // it had started.
+            if (!activityResumed) {
+                webView.onResume()
+                webView.resumeTimers()
+            }
         }
         val script = when (command) {
             COMMAND_PLAY ->
@@ -286,14 +309,32 @@ class MediaPlugin(private val activity: Activity) {
             else -> return
         }
         webView.evaluateJavascript(script) { result ->
-            when (result?.trim('"')) {
-                "playing" -> isPlaying = true
-                "paused" -> isPlaying = false
+            val playing = when (result?.trim('"')) {
+                "playing" -> true
+                "paused" -> false
                 else -> return@evaluateJavascript
             }
-            updatePictureInPictureParams()
+            isPlaying = playing
+            // The session's state decides whether the next headset press
+            // means Play or Pause. It used to follow only the page's reports,
+            // and pausing an element the browser had already paused reports
+            // nothing: the session stayed "playing", every press asked for
+            // Pause again, and the headset could no longer start the video.
+            if (playing != playbackActive) {
+                applyPlaybackActive(playing, "")
+            } else {
+                updatePictureInPictureParams()
+            }
         }
     }
+
+    private fun keyEventOf(intent: Intent): KeyEvent? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+        }
 
     private fun ensureMediaSession(): MediaSession {
         mediaSession?.let { return it }
@@ -308,6 +349,24 @@ class MediaPlugin(private val activity: Activity) {
             override fun onSeekTo(pos: Long) = runPlaybackCommand(COMMAND_SEEK, pos)
             override fun onFastForward() = runPlaybackCommand(COMMAND_FORWARD)
             override fun onRewind() = runPlaybackCommand(COMMAND_REWIND)
+
+            // A headset's single button is Play/Pause, which the platform
+            // turns into Play or Pause from the session's last state. Ask the
+            // element instead: it knows whether it is paused, the session
+            // only knows what it was last told.
+            override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                val event = keyEventOf(mediaButtonIntent)
+                    ?: return super.onMediaButtonEvent(mediaButtonIntent)
+                if (event.keyCode != KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE &&
+                    event.keyCode != KeyEvent.KEYCODE_HEADSETHOOK
+                ) {
+                    return super.onMediaButtonEvent(mediaButtonIntent)
+                }
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    runPlaybackCommand(COMMAND_TOGGLE)
+                }
+                return true
+            }
         })
         session.setSessionActivity(launchPendingIntent())
         mediaSession = session
@@ -469,9 +528,11 @@ class MediaPlugin(private val activity: Activity) {
             )
             .build()
 
+        lastNotification = notification
         val intent = Intent(activity, PlaybackService::class.java)
             .putExtra(PlaybackService.EXTRA_NOTIFICATION, notification)
         val notifications = activity.getSystemService(NotificationManager::class.java)
+        if (playing) cancelPendingDetach() else if (serviceForeground) scheduleDetach()
         when {
             playing && !serviceForeground -> {
                 // Starting an already-running foreground service and forcing
@@ -493,21 +554,45 @@ class MediaPlugin(private val activity: Activity) {
                     false
                 }
             }
-            !playing && serviceForeground -> {
-                // Paused: keep the controls on screen so Play is one tap
-                // away, but let go of the foreground service.
-                serviceForeground = false
-                try {
-                    activity.startService(intent.setAction(PlaybackService.ACTION_DETACH))
-                } catch (error: IllegalStateException) {
-                    notifications.notify(PlaybackService.NOTIFICATION_ID, notification)
-                }
-            }
+            // Paused: still foreground for a while (see `PAUSED_FOREGROUND_MS`),
+            // so only the notification changes.
             else -> notifications.notify(PlaybackService.NOTIFICATION_ID, notification)
         }
     }
 
+    private fun cancelPendingDetach() {
+        pendingDetach?.let(mainHandler::removeCallbacks)
+        pendingDetach = null
+    }
+
+    private fun scheduleDetach() {
+        if (pendingDetach != null) return
+        val detach = Runnable {
+            pendingDetach = null
+            if (!playbackActive && serviceForeground) detachForeground()
+        }
+        pendingDetach = detach
+        mainHandler.postDelayed(detach, PAUSED_FOREGROUND_MS)
+    }
+
+    /// Paused long enough: keep the controls on screen so Play is one tap
+    /// away, but let go of the foreground service.
+    private fun detachForeground() {
+        val notification = lastNotification ?: return
+        val intent = Intent(activity, PlaybackService::class.java)
+            .putExtra(PlaybackService.EXTRA_NOTIFICATION, notification)
+            .setAction(PlaybackService.ACTION_DETACH)
+        try {
+            activity.startService(intent)
+            serviceForeground = false
+        } catch (error: IllegalStateException) {
+            // Still foreground, then; the next play only updates it.
+        }
+    }
+
     private fun releasePlayback() {
+        cancelPendingDetach()
+        lastNotification = null
         playbackActive = false
         playbackTitle = ""
         if (serviceForeground) {
@@ -662,37 +747,39 @@ class MediaPlugin(private val activity: Activity) {
     /// so the system player and a headset can resume; `clearPlaybackFromRust`
     /// is what removes them.
     fun setPlaybackActiveFromRust(active: Boolean, title: String) {
-        activity.runOnUiThread {
-            val wasActive = playbackActive
-            playbackActive = active
-            if (title.isNotBlank()) playbackTitle = title
-            isPlaying = active
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.isInPictureInPictureMode) {
-                updatePictureInPictureParams()
-            }
-            if (active) {
-                ensureWindowVisibilityListener()
-                ensureMediaSession()
-                // The screen went off while the video was still loading, so the
-                // host paused the WebView and its timers before there was any
-                // playback to keep alive. Nothing resumed them, and the page's
-                // streaming ran only in bursts: the video played what it had,
-                // stalled, and stuttered until the screen came back on.
-                if (!wasActive && !activityResumed) {
-                    val root = activity.window.decorView
-                    if (root.windowVisibility != View.VISIBLE) {
-                        findWebView(root)?.dispatchWindowVisibilityChanged(View.VISIBLE)
-                    }
-                    scheduleWebPlaybackResume()
-                }
-            } else if (wasActive) {
-                pendingWebPlaybackResume?.let(activity.window.decorView::removeCallbacks)
-                pendingWebPlaybackResume = null
-                restoreWebViewWindowVisibility()
-            }
-            // A pause before anything ever played has no controls to update.
-            if (mediaSession != null) publishPlaybackState()
+        activity.runOnUiThread { applyPlaybackActive(active, title) }
+    }
+
+    private fun applyPlaybackActive(active: Boolean, title: String) {
+        val wasActive = playbackActive
+        playbackActive = active
+        if (title.isNotBlank()) playbackTitle = title
+        isPlaying = active
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.isInPictureInPictureMode) {
+            updatePictureInPictureParams()
         }
+        if (active) {
+            ensureWindowVisibilityListener()
+            ensureMediaSession()
+            // The screen went off while the video was still loading, so the
+            // host paused the WebView and its timers before there was any
+            // playback to keep alive. Nothing resumed them, and the page's
+            // streaming ran only in bursts: the video played what it had,
+            // stalled, and stuttered until the screen came back on.
+            if (!wasActive && !activityResumed) {
+                val root = activity.window.decorView
+                if (root.windowVisibility != View.VISIBLE) {
+                    findWebView(root)?.dispatchWindowVisibilityChanged(View.VISIBLE)
+                }
+                scheduleWebPlaybackResume()
+            }
+        } else if (wasActive) {
+            pendingWebPlaybackResume?.let(activity.window.decorView::removeCallbacks)
+            pendingWebPlaybackResume = null
+            restoreWebViewWindowVisibility()
+        }
+        // A pause before anything ever played has no controls to update.
+        if (mediaSession != null) publishPlaybackState()
     }
 
     /// The player went away: drop the session, its notification and the
