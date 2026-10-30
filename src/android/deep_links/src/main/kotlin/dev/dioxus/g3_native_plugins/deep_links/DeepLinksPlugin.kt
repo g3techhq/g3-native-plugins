@@ -3,6 +3,7 @@ package dev.dioxus.g3_native_plugins.deep_links
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 
 /**
@@ -33,7 +34,11 @@ import java.util.ArrayDeque
 class DeepLinksPlugin(private val activity: Activity) {
     companion object {
         private val pending = ArrayDeque<String>()
-        private var listenerRegistered = false
+        // The Activity the new-intent listener is on. Android recreates the
+        // Activity on rotation and theme changes, and Rust prepares the plugin
+        // again for the new one; a listener left on the old Activity would
+        // never hear another Intent.
+        private var listenerOwner = WeakReference<Activity>(null)
         private var launchIntentConsumed = false
 
         private fun enqueue(intent: Intent?) {
@@ -57,9 +62,9 @@ class DeepLinksPlugin(private val activity: Activity) {
                 enqueue(activity.intent)
             }
             val owner = activity as? ComponentActivity ?: return@runOnUiThread
-            if (listenerRegistered) return@runOnUiThread
+            if (listenerOwner.get() === activity) return@runOnUiThread
             owner.addOnNewIntentListener { intent -> enqueue(intent) }
-            listenerRegistered = true
+            listenerOwner = WeakReference(activity)
         }
     }
 

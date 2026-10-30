@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
+import java.lang.ref.WeakReference
 import org.json.JSONObject
 
 /**
@@ -28,7 +29,11 @@ import org.json.JSONObject
  */
 class PushNotificationsPlugin(private val activity: Activity) {
     companion object {
-        private var listenerRegistered = false
+        // The Activity the new-intent listener is on. Android recreates the
+        // Activity on rotation and theme changes, and Rust prepares the plugin
+        // again for the new one; a listener left on the old Activity would
+        // never hear another Intent.
+        private var listenerOwner = WeakReference<Activity>(null)
         private var launchIntentConsumed = false
         private const val MESSAGE_ID = "google.message_id"
     }
@@ -47,9 +52,9 @@ class PushNotificationsPlugin(private val activity: Activity) {
                 consume(activity.intent)
             }
             val owner = activity as? ComponentActivity ?: return@runOnUiThread
-            if (listenerRegistered) return@runOnUiThread
+            if (listenerOwner.get() === activity) return@runOnUiThread
             owner.addOnNewIntentListener { intent -> consume(intent) }
-            listenerRegistered = true
+            listenerOwner = WeakReference(activity)
         }
     }
 

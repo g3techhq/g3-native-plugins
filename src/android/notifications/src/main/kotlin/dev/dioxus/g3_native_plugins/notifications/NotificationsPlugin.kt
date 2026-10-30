@@ -13,6 +13,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import java.lang.ref.WeakReference
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -32,7 +33,11 @@ class NotificationsPlugin(private val activity: Activity) {
     companion object {
         private const val REQUEST_PERMISSION = 7403
         private const val ASKED = "asked"
-        private var listenerRegistered = false
+        // The Activity the new-intent listener is on. Android recreates the
+        // Activity on rotation and theme changes, and Rust prepares the plugin
+        // again for the new one; a listener left on the old Activity would
+        // never hear another Intent.
+        private var listenerOwner = WeakReference<Activity>(null)
         private var launchIntentConsumed = false
     }
 
@@ -60,9 +65,9 @@ class NotificationsPlugin(private val activity: Activity) {
                 consume(activity.intent)
             }
             val owner = activity as? ComponentActivity ?: return@runOnUiThread
-            if (listenerRegistered) return@runOnUiThread
+            if (listenerOwner.get() === activity) return@runOnUiThread
             owner.addOnNewIntentListener { intent -> consume(intent) }
-            listenerRegistered = true
+            listenerOwner = WeakReference(activity)
         }
     }
 
