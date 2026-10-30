@@ -32,6 +32,10 @@
         feature = "updater"
     )
 ))]
+// Each plugin uses only the call shapes its Kotlin methods need, so a build
+// with some of the features (an app, or g3-route-transitions' `native-back`)
+// leaves the rest of the bridge unused.
+#[allow(dead_code)]
 mod android_bridge;
 #[cfg(feature = "app-info")]
 mod app_info;
