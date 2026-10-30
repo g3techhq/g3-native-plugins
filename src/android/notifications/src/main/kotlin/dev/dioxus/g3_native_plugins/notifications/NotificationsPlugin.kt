@@ -33,8 +33,8 @@ class NotificationsPlugin(private val activity: Activity) {
     companion object {
         private const val REQUEST_PERMISSION = 7403
         private const val ASKED = "asked"
-        // The Activity the new-intent listener is on. Android recreates the
-        // Activity on rotation and theme changes, and Rust prepares the plugin
+        // The Activity the new-intent listener is on. Android can recreate
+        // the Activity while the process lives, and Rust prepares the plugin
         // again for the new one; a listener left on the old Activity would
         // never hear another Intent.
         private var listenerOwner = WeakReference<Activity>(null)

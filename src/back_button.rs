@@ -96,8 +96,8 @@ impl BackButton {
         if self.intercepting == intercepting {
             return Ok(());
         }
-        // Kept, so an Activity recreated on rotation gets its own callback in
-        // the same state: the old one went with the old Activity.
+        // Kept, so a recreated Activity gets its own callback in the same
+        // state: the old one went with the old Activity.
         self.get_plugin()?
             .keep_unit_bool("setInterceptingFromRust", intercepting)
             .map_err(|error| format!("Failed to update Back interception: {error}"))?;

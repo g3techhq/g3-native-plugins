@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** builds against Dioxus `=0.8.0-alpha.3` from the Gateway3B fork
+  (upstream `main` plus the g3 commits) instead of 0.7.9. Apps patch `dioxus`,
+  `dioxus-signals` and `manganis` to the fork and build with its `dx`; see the
+  README. Nothing is published to crates.io until Dioxus 0.8.0 is.
+
+- Android: plugins take the Activity from `manganis::android::with_activity`,
+  since the fork's `ndk_context` holds the Application. Back button and media
+  now share the other plugins' bridge.
+
 ### Added
 
 - Storage: `remove_durable` waits for native encrypted deletion, including Android
@@ -38,6 +49,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   leave white icons on a light page. Inert on iOS and the web.
 
 ### Fixed
+
+- Android: a plugin built for an Activity that Android has since recreated is
+  rebuilt for the new one, and what was set up on the old one (deep-link,
+  notification and push listeners, Back interception, media session, safe-area
+  insets, bar icons and hidden bars) is set up again. Before, it kept acting on
+  the destroyed Activity, and warm links and notification taps went unheard.
 
 - Android: every plugin module now ships an R8 keep rule for the class the Rust
   side loads by name. Twelve modules carried an empty `consumer-rules.pro`, so

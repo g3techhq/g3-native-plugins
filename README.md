@@ -56,6 +56,28 @@ Enable only the plugins your app uses:
 g3-native-plugins = { version = "0.4", features = ["clipboard", "auth", "external-url"] }
 ```
 
+`main` builds against Dioxus `=0.8.0-alpha.3` from the
+[Gateway3B fork](https://github.com/Gateway3B/dioxus) (upstream `main` plus the
+g3 commits), and nothing from it is published until Dioxus 0.8.0 is: a
+crates.io release that only builds with a `[patch]` would be broken for
+everyone else. The 0.4 releases on crates.io stay on Dioxus 0.7.9. To use
+`main`, pin Dioxus the same way and patch both into your app's workspace root:
+
+```toml
+[dependencies]
+dioxus = "=0.8.0-alpha.3"
+g3-native-plugins = { version = "0.4", features = ["clipboard", "auth", "external-url"] }
+
+[patch.crates-io]
+dioxus = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+dioxus-signals = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+manganis = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+g3-native-plugins = { git = "https://github.com/g3techhq/g3-native-plugins", branch = "main" }
+```
+
+Build it with the fork's CLI, since `dx` and the Dioxus crates must match:
+`cargo install --git https://github.com/Gateway3B/dioxus --branch main dioxus-cli --locked`.
+
 ## Provide Plugins
 
 Create the provider once near your app root. The provider lazily constructs each native plugin the first time it is used.
@@ -479,8 +501,9 @@ mode for links to arrive while the app is already running. Under the default
 `onNewIntent`, and the link shows up as that Activity's launch Intent instead.
 Observed on an emulator: a link sent to a running app restarted it under a new
 pid and arrived through the launch-Intent path, which is the fallback working
-as designed rather than the `onNewIntent` path. Dioxus.toml has no `launch_mode`
-key as of CLI 0.7.9, so setting it needs `[android.raw]` manifest injection.
+as designed rather than the `onNewIntent` path. The Dioxus fork's generated
+manifest already declares `singleTask`; CLI 0.7.9 had no `launch_mode` key, so
+an app still on it needs `[android.raw]` manifest injection.
 
 On the web the browser hands the app its URL directly and the router already
 routes it; macOS delivers nothing here. Both are inert, so callers need no

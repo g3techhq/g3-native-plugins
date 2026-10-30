@@ -19,9 +19,12 @@
 //! The Activity comes from `manganis::android::with_activity`, not from
 //! `ndk_context`. On the Dioxus fork `ndk_context` holds the Application, and
 //! the plugins need a real Activity: they present dialogs, register Back and
-//! new-Intent callbacks, and change the window. Android also recreates the
-//! Activity on rotation and theme changes, and `dioxus-desktop` reports each
-//! new one to manganis. A Kotlin plugin keeps the Activity it was constructed
+//! new-Intent callbacks, and change the window. Android can also recreate the
+//! Activity while the process lives on — a configuration change the manifest
+//! does not declare it handles, or the system reclaiming a backgrounded
+//! Activity — and `dioxus-desktop` reports each new one to manganis. The
+//! generated manifest handles rotation and dark mode itself, so this is rare,
+//! but it happens. A Kotlin plugin keeps the Activity it was constructed
 //! with, so one built for a destroyed Activity would act on a dead window.
 //! Each call therefore checks the plugin against the current Activity and
 //! rebuilds it when the Activity has changed, then repeats the setup calls

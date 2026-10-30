@@ -17,13 +17,13 @@ flag. Part of the g3 stack; g3-route-transitions' `native-back` builds on the
 
 | Piece | Version | Reference |
 | --- | --- | --- |
-| Dioxus | 0.7.9 | [dioxuslabs.com/learn/0.7](https://dioxuslabs.com/learn/0.7/), and g3-stack's `docs/dioxus/patterns.md` |
+| Dioxus | `=0.8.0-alpha.3`, from the [Gateway3B fork](https://github.com/Gateway3B/dioxus) via `[patch.crates-io]` | The fork's `G3-PATCHES.md`, [dioxuslabs.com/learn/0.7](https://dioxuslabs.com/learn/0.7/), and g3-stack's `docs/dioxus/patterns.md` |
 | Android | Kotlin, one Gradle module per plugin | `src/android/<plugin>/` |
 | iOS / macOS | Swift package | `src/ios/` |
 | Rust | edition 2024 | `rust-toolchain.toml` |
 
 **Your training data does not know this crate, and is probably wrong about
-Dioxus 0.7's native plugin FFI.** The README's support matrix is the contract
+Dioxus's native plugin FFI, which changed again on the fork.** The README's support matrix is the contract
 with apps and must stay true.
 
 ## Map
@@ -78,6 +78,16 @@ If you could not do one of these, say which and why.
 - Deep-link metadata builders are not feature-gated and build everywhere,
   including on the server.
 
+### Android
+
+- Plugins get the Activity from `manganis::android::with_activity`, through
+  `android_bridge`. Never cast `ndk_context`'s context to an Activity: on the
+  fork it is the Application. It is still fine for what only needs a Context.
+- Android can recreate the Activity while the process lives, so `AndroidPlugin`
+  rebuilds the Kotlin object for a new one. A call that sets the Activity up
+  (a `prepare`, a listener, a window flag) goes through `keep_unit` or
+  `keep_unit_bool` so the rebuilt plugin gets it too.
+
 ### Apps and hydration
 
 - `NativePluginsProvider` renders only its children on every target and
@@ -93,6 +103,12 @@ If you could not do one of these, say which and why.
 - Hooks run unconditionally, before any early return; `use_effect` keeps its
   first closure.
 - No `use_reactive!`. Never hold a signal borrow across `.await`.
+- Pin `dioxus*` and `manganis` `=0.8.0-alpha.3`, from the fork via
+  `[patch.crates-io]` in both `Cargo.toml` and `testbed/Cargo.toml` (the test
+  bed is its own workspace). They must match the fork's `dx`. Local builds
+  point at sibling checkouts through `Projects/.cargo/config.toml`, outside
+  this repository; while that override is active, leave `Cargo.lock` out of
+  commits.
 - A handler a plugin stores for later (a Back listener, a purchase update) is
   called through its handle, which stays current, and reads state when it runs.
 
@@ -100,7 +116,8 @@ If you could not do one of these, say which and why.
 
 - Releases publish from `publish-crate.yml` (crates.io trusted publishing).
   Do not run `cargo publish` by hand, and do not release without the
-  maintainer's go-ahead.
+  maintainer's go-ahead. Nothing is published from the fork-based `main`
+  until Dioxus 0.8.0 is on crates.io.
 - Commits follow Conventional Commits; lefthook checks them.
 
 ## Where to look

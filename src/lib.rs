@@ -429,8 +429,8 @@ mod tests {
         assert!(bridge.contains("getClassLoader"));
         assert!(bridge.contains("loadClass"));
         // On the Dioxus fork `ndk_context` holds the Application, and Android
-        // recreates the Activity on rotation: plugins are built with the
-        // current Activity and rebuilt when it changes.
+        // can recreate the Activity: plugins are built with the current
+        // Activity and rebuilt when it changes.
         assert!(bridge.contains("manganis::android::with_activity"));
         assert!(bridge.contains("is_same_object"));
         assert!(!bridge.contains(".context()"));
