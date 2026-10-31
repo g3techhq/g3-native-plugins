@@ -1,5 +1,6 @@
 use crate::permissions::PermissionState;
 use serde::{Deserialize, Serialize};
+
 /// Declared for its side effect: this is what tells `dx` to build and bundle
 /// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
 /// because the macro's own bindings resolve classes against the calling
@@ -9,23 +10,33 @@ use serde::{Deserialize, Serialize};
 unsafe extern "Kotlin" {
     pub type CameraMicrophonePlugin;
 }
+
 #[cfg(target_os = "android")]
 const CAMERA_MICROPHONE_CLASS: &str =
     "dev.dioxus.g3_native_plugins.camera_microphone.CameraMicrophonePlugin";
+
 #[cfg(target_os = "android")]
 type CameraMicrophoneHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(target_os = "ios")]
 type CameraMicrophoneHandle = CameraMicrophonePlugin;
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type CameraMicrophonePlugin;
+
     pub fn checkPermissionsFromRust(this: &CameraMicrophonePlugin) -> Option<String>;
+
     pub fn requestCameraFromRust(this: &CameraMicrophonePlugin);
+
     pub fn requestMicrophoneFromRust(this: &CameraMicrophonePlugin);
+
     pub fn openSettingsFromRust(this: &CameraMicrophonePlugin);
+
     pub fn setCapturingFromRust(this: &CameraMicrophonePlugin, capturing: bool);
 }
+
 /// Whether the app may use the camera and the microphone.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +46,7 @@ pub struct CapturePermissions {
     /// `RECORD_AUDIO` on Android, `NSMicrophoneUsageDescription` on iOS.
     pub microphone: PermissionState,
 }
+
 /// The permission state around `getUserMedia`, not a capture API of its own.
 ///
 /// Camera and microphone capture in a Dioxus app is ordinary web code: call
@@ -92,18 +104,22 @@ pub struct CapturePermissions {
 pub struct CameraMicrophone {
     plugin: Option<CameraMicrophoneHandle>,
 }
+
 /// The inert capture-permission facade: see the native [`CameraMicrophone`].
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 pub struct CameraMicrophone;
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl CameraMicrophone {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&CameraMicrophoneHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = CameraMicrophoneHandle::new(CAMERA_MICROPHONE_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = CameraMicrophonePlugin::new()
                 .map_err(|error| format!("Failed to create CameraMicrophonePlugin: {error:?}"))?;
@@ -111,25 +127,30 @@ impl CameraMicrophone {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Construct the native plugin without asking for anything yet.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
     }
+
     /// What the app is allowed to capture right now.
     ///
     /// Cheap on both platforms, so this is the thing to poll after a request
     /// rather than waiting on a callback.
     pub fn check_permissions(&mut self) -> Result<CapturePermissions, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let reported = plugin.call_string("checkPermissionsFromRust")?;
+
         #[cfg(target_os = "ios")]
         let reported = checkPermissionsFromRust(plugin)?;
         let json = reported.ok_or_else(|| "Capture permissions were not reported".to_string())?;
         serde_json::from_str(&json)
             .map_err(|error| format!("Failed to read capture permissions: {error}"))
     }
+
     /// Show the system camera prompt.
     ///
     /// Does nothing once the state is [`PermissionState::Denied`]: neither
@@ -137,34 +158,43 @@ impl CameraMicrophone {
     /// [`open_settings`](CameraMicrophone::open_settings) instead.
     pub fn request_camera(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("requestCameraFromRust")?;
+
         #[cfg(target_os = "ios")]
         requestCameraFromRust(plugin)?;
         Ok(())
     }
+
     /// Show the system microphone prompt. Same caveat as
     /// [`request_camera`](CameraMicrophone::request_camera).
     pub fn request_microphone(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("requestMicrophoneFromRust")?;
+
         #[cfg(target_os = "ios")]
         requestMicrophoneFromRust(plugin)?;
         Ok(())
     }
+
     /// Open this app's page in the Settings app.
     ///
     /// The only way back from a permanent refusal, and not reachable from the
     /// page. Leaves the app, so ask before calling it.
     pub fn open_settings(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("openSettingsFromRust")?;
+
         #[cfg(target_os = "ios")]
         openSettingsFromRust(plugin)?;
         Ok(())
     }
+
     /// Tell iOS the app is recording, so playback and capture can share the
     /// audio session.
     ///
@@ -178,39 +208,48 @@ impl CameraMicrophone {
     /// nothing else has claimed it.
     pub fn set_capturing(&mut self, capturing: bool) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_bool("setCapturingFromRust", capturing)?;
+
         #[cfg(target_os = "ios")]
         setCapturingFromRust(plugin, capturing)?;
         Ok(())
     }
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl CameraMicrophone {
     pub(crate) fn new() -> Self {
         Self
     }
+
     /// No-op: nothing native to construct on these targets.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Always [`PermissionState::Prompt`]: on the web the browser owns this,
     /// and the Permissions API is already available to the page.
     pub fn check_permissions(&mut self) -> Result<CapturePermissions, String> {
         Ok(CapturePermissions::default())
     }
+
     /// No-op: `getUserMedia` raises the browser's own prompt.
     pub fn request_camera(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: `getUserMedia` raises the browser's own prompt.
     pub fn request_microphone(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: there is no app settings page to open.
     pub fn open_settings(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: no audio session to rearrange.
     pub fn set_capturing(&mut self, _capturing: bool) -> Result<(), String> {
         Ok(())

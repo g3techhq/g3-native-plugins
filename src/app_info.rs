@@ -17,10 +17,12 @@ pub struct AppInfo {
 unsafe extern "Kotlin" {
     pub type AppInfoPlugin;
 }
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type AppInfoPlugin;
+
     pub fn appInfoFromRust(this: &AppInfoPlugin) -> Option<String>;
 }
 
@@ -52,12 +54,14 @@ pub fn installed_app_info() -> Result<Option<AppInfo>, String> {
             .ok_or("Native metadata unavailable")?;
         decode(&value).map(Some)
     }
+
     #[cfg(target_os = "ios")]
     {
         let plugin = AppInfoPlugin::new().map_err(|_| "App metadata bridge unavailable")?;
         let value = appInfoFromRust(&plugin)?.ok_or("Native metadata unavailable")?;
         decode(&value).map(Some)
     }
+
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         Ok(None)
@@ -67,6 +71,7 @@ pub fn installed_app_info() -> Result<Option<AppInfo>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn preserves_native_builds_without_semver_assumptions() {
         let value =
@@ -75,6 +80,7 @@ mod tests {
         assert_eq!(value.build, "4294967297");
         assert!(decode(r#"{"identifier":"net.g3tech.app","version":"1.2","build":""}"#).is_err());
     }
+
     #[test]
     fn bridge_contracts_match_both_platforms() {
         let kotlin = include_str!(

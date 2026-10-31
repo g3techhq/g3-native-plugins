@@ -69,3 +69,7 @@ updater = ["dep:minisign-verify", "dep:semver", "dep:sha2"]
 dioxus = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
 dioxus-signals = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
 manganis = { git = "https://github.com/Gateway3B/dioxus", branch = "main" }
+
+[lints.clippy]
+cloned_instead_of_copied = "warn"
+allow_attributes_without_reason = "warn"

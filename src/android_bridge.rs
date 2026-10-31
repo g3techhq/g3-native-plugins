@@ -41,6 +41,7 @@ use jni::{
     JNIEnv, JavaVM,
     objects::{GlobalRef, JClass, JObject, JString, JValue},
 };
+
 /// A Kotlin plugin object, rebuilt whenever the Activity it was built for is
 /// replaced.
 pub(crate) struct AndroidPlugin {
@@ -51,17 +52,20 @@ pub(crate) struct AndroidPlugin {
     /// order first made, with the latest argument for each method.
     kept: Mutex<Vec<(String, Setup)>>,
 }
+
 /// One plugin instance and the Activity it was constructed with.
 struct Built {
     activity: GlobalRef,
     instance: GlobalRef,
 }
+
 /// The argument of a kept setup call.
 #[derive(Clone, Copy)]
 enum Setup {
     Unit,
     Bool(bool),
 }
+
 impl AndroidPlugin {
     /// Construct `class_name` with the current Activity, through the app's own
     /// loader.
@@ -77,6 +81,7 @@ impl AndroidPlugin {
             kept: Mutex::new(Vec::new()),
         })
     }
+
     /// Run `call` against a plugin built for the current Activity.
     fn with_instance<R>(
         &self,
@@ -87,6 +92,7 @@ impl AndroidPlugin {
             call(env, instance.as_obj())
         })
     }
+
     /// The plugin for `activity`, rebuilt and set up again if the one held was
     /// built for an earlier Activity.
     fn instance_for(
@@ -109,6 +115,7 @@ impl AndroidPlugin {
         }
         Ok(built.instance.clone())
     }
+
     /// Remember a setup call so a plugin rebuilt for a new Activity gets it
     /// too. Recorded after the call succeeds, so a rebuild that call triggers
     /// replays the earlier value and the call itself then applies the new one.
@@ -119,6 +126,7 @@ impl AndroidPlugin {
             None => kept.push((method.to_owned(), setup)),
         }
     }
+
     /// Call a `fun name()` that sets up the Activity, and call it again on any
     /// later Activity.
     pub(crate) fn keep_unit(&self, method: &str) -> Result<(), String> {
@@ -126,6 +134,7 @@ impl AndroidPlugin {
         self.keep(method, Setup::Unit);
         Ok(())
     }
+
     /// Call a `fun name(value: Boolean)` that sets up the Activity, and call it
     /// again with the latest value on any later Activity.
     pub(crate) fn keep_unit_bool(&self, method: &str, value: bool) -> Result<(), String> {
@@ -133,14 +142,17 @@ impl AndroidPlugin {
         self.keep(method, Setup::Bool(value));
         Ok(())
     }
+
     /// Call a `fun name()` returning nothing.
     pub(crate) fn call_unit(&self, method: &str) -> Result<(), String> {
         self.with_instance(|env, instance| Setup::Unit.call(env, instance, method))
     }
+
     /// Call a `fun name(value: Boolean)` returning nothing.
     pub(crate) fn call_unit_bool(&self, method: &str, value: bool) -> Result<(), String> {
         self.with_instance(|env, instance| Setup::Bool(value).call(env, instance, method))
     }
+
     /// Call a `fun name(first: Int, second: Int)` returning nothing.
     pub(crate) fn call_unit_int_int(
         &self,
@@ -159,6 +171,7 @@ impl AndroidPlugin {
             Ok(())
         })
     }
+
     /// Call a `fun name(value: String)` returning nothing.
     pub(crate) fn call_unit_str(&self, method: &str, value: &str) -> Result<(), String> {
         self.with_instance(|env, instance| {
@@ -173,6 +186,7 @@ impl AndroidPlugin {
             Ok(())
         })
     }
+
     /// Call a `fun name(first: String, second: String)` returning nothing.
     pub(crate) fn call_unit_str_str(
         &self,
@@ -193,6 +207,7 @@ impl AndroidPlugin {
             Ok(())
         })
     }
+
     /// Call a `fun name(value: String, flag: Boolean)` returning nothing.
     pub(crate) fn call_unit_str_bool(
         &self,
@@ -212,6 +227,7 @@ impl AndroidPlugin {
             Ok(())
         })
     }
+
     /// Call a `fun name(flag: Boolean, value: String)` returning nothing.
     pub(crate) fn call_unit_bool_str(
         &self,
@@ -231,6 +247,7 @@ impl AndroidPlugin {
             Ok(())
         })
     }
+
     /// Call a `fun name(): String?`.
     pub(crate) fn call_string(&self, method: &str) -> Result<Option<String>, String> {
         self.with_instance(|env, instance| {
@@ -240,6 +257,7 @@ impl AndroidPlugin {
             Self::read_string(env, value, method)
         })
     }
+
     /// Call a `fun name(value: String): String?`.
     pub(crate) fn call_string_str(
         &self,
@@ -259,6 +277,7 @@ impl AndroidPlugin {
             Self::read_string(env, value, method)
         })
     }
+
     /// Call a `fun name(first: String, second: String): String?`.
     pub(crate) fn call_string_str_str(
         &self,
@@ -280,11 +299,13 @@ impl AndroidPlugin {
             Self::read_string(env, value, method)
         })
     }
+
     fn string<'a>(env: &mut JNIEnv<'a>, value: &str) -> Result<JObject<'a>, String> {
         env.new_string(value)
             .map(JObject::from)
             .map_err(|error| format!("Failed to pass a string to Kotlin: {error}"))
     }
+
     fn read_string(
         env: &mut JNIEnv<'_>,
         value: jni::objects::JValueGen<JObject<'_>>,
@@ -305,6 +326,7 @@ impl AndroidPlugin {
         Ok(Some(text.into()))
     }
 }
+
 impl Built {
     /// Construct `class_name` with `activity`, through the app's own loader.
     fn new(env: &mut JNIEnv<'_>, activity: &JObject<'_>, class_name: &str) -> Result<Self, String> {
@@ -342,6 +364,7 @@ impl Built {
         Ok(Self { activity, instance })
     }
 }
+
 impl Setup {
     fn call(
         self,
@@ -359,6 +382,7 @@ impl Setup {
         Ok(())
     }
 }
+
 /// Run `call` with the current Activity.
 ///
 /// The thread is attached for good first: `with_activity` attaches only for

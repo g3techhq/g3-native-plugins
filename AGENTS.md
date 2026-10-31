@@ -126,3 +126,8 @@ If you could not do one of these, say which and why.
 - `testbed/README.md`: running the test bed on a device
 - `CHANGELOG.md`: what changed between versions
 - g3-stack's `docs/native-plugins.md`, for how an app uses them
+
+## Readability
+
+Follow [docs/code-style.md](docs/code-style.md) for Rust imports, section spacing
+and RSX layout. Run `python scripts/rust_style.py --staged` before committing.

@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+
 /// Declared for its side effect: this is what tells `dx` to build and bundle
 /// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
 /// because the macro's own bindings resolve classes against the calling
@@ -8,23 +9,33 @@ use serde_json::{Value, json};
 unsafe extern "Kotlin" {
     pub type DeepLinksPlugin;
 }
+
 #[cfg(all(feature = "deep-links", target_os = "android"))]
 const DEEP_LINKS_CLASS: &str = "dev.dioxus.g3_native_plugins.deep_links.DeepLinksPlugin";
+
 #[cfg(all(feature = "deep-links", target_os = "android"))]
 type DeepLinksHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(all(feature = "deep-links", target_os = "ios"))]
 type DeepLinksHandle = DeepLinksPlugin;
+
 #[cfg(all(feature = "deep-links", target_os = "ios"))]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "These native FFI declarations mirror the platform bridge rather than the Rust API."
+)]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     /// Native iOS deep-link queue bridge.
     pub type DeepLinksPlugin;
+
     /// Installs the native app-delegate hooks.
     pub fn prepareFromRust(this: &DeepLinksPlugin);
+
     /// Removes and returns the oldest queued link.
     pub fn takeLinkFromRust(this: &DeepLinksPlugin) -> Option<String>;
 }
+
 /// The URLs a universal link, App Link, or custom scheme opened the app with.
 ///
 /// This is the receiving half of deep linking. Declaring the links is already
@@ -68,12 +79,14 @@ unsafe extern "Swift" {
 pub struct DeepLinks {
     plugin: Option<DeepLinksHandle>,
 }
+
 /// The inert deep-link facade: see the native [`DeepLinks`] for the contract.
 #[cfg(all(
     feature = "deep-links",
     any(target_arch = "wasm32", target_os = "macos")
 ))]
 pub struct DeepLinks;
+
 #[cfg(all(feature = "deep-links", any(target_os = "android", target_os = "ios")))]
 impl DeepLinks {
     /// Create an unprepared deep-link receiver.
@@ -85,10 +98,12 @@ impl DeepLinks {
     pub fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&DeepLinksHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = DeepLinksHandle::new(DEEP_LINKS_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = DeepLinksPlugin::new()
                 .map_err(|error| format!("Failed to create DeepLinksPlugin: {error:?}"))?;
@@ -96,6 +111,7 @@ impl DeepLinks {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Start collecting links.
     ///
     /// Call this as early as the app can. On iOS a link that started the app is
@@ -105,12 +121,15 @@ impl DeepLinks {
     /// harmless and does not re-deliver a link already queued.
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.keep_unit("prepareFromRust")?;
+
         #[cfg(target_os = "ios")]
         prepareFromRust(plugin)?;
         Ok(())
     }
+
     /// Take the oldest link not yet handled, or `None` when none are waiting.
     ///
     /// Preparation happens on the platform's main thread while this is called
@@ -118,12 +137,15 @@ impl DeepLinks {
     /// or two to appear. Drain in a loop until this returns `None`.
     pub fn take_link(&mut self) -> Result<Option<String>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         return plugin.call_string("takeLinkFromRust");
+
         #[cfg(target_os = "ios")]
         return Ok(takeLinkFromRust(plugin)?);
     }
 }
+
 #[cfg(all(
     feature = "deep-links",
     any(target_arch = "wasm32", target_os = "macos")
@@ -133,15 +155,18 @@ impl DeepLinks {
     pub fn new() -> Self {
         Self
     }
+
     /// No-op: the browser routes its own URL, and macOS delivers no links here.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Always `None`: nothing on these targets queues a link.
     pub fn take_link(&mut self) -> Result<Option<String>, String> {
         Ok(None)
     }
 }
+
 #[cfg(all(
     feature = "deep-links",
     any(
@@ -156,6 +181,7 @@ impl Default for DeepLinks {
         Self::new()
     }
 }
+
 /// The contents of an `apple-app-site-association` file, which iOS fetches
 /// from `https://<host>/.well-known/apple-app-site-association` to decide
 /// which URLs open in the app instead of Safari.
@@ -169,6 +195,7 @@ pub struct AppleAppSiteAssociation {
     /// `/games/*/join` matches any game id.
     pub paths: Vec<String>,
 }
+
 impl AppleAppSiteAssociation {
     /// Build an association for one app and the paths it claims.
     pub fn new(
@@ -182,10 +209,12 @@ impl AppleAppSiteAssociation {
             paths: paths.into_iter().map(Into::into).collect(),
         }
     }
+
     /// The fully qualified app identifier Apple expects: `<team_id>.<bundle_id>`.
     pub fn app_id(&self) -> String {
         format!("{}.{}", self.team_id, self.bundle_id)
     }
+
     /// Render the association as the JSON body to serve at the well-known path.
     pub fn to_json(&self) -> Value {
         json!(
@@ -194,6 +223,7 @@ impl AppleAppSiteAssociation {
         )
     }
 }
+
 /// The contents of an `assetlinks.json` file, which Android fetches from
 /// `https://<host>/.well-known/assetlinks.json` to verify an App Link and
 /// open matching URLs in the app without a disambiguation dialog.
@@ -206,6 +236,7 @@ pub struct AndroidAssetLinks {
     /// or verification fails for store builds.
     pub sha256_cert_fingerprints: Vec<String>,
 }
+
 impl AndroidAssetLinks {
     /// Build an asset-links statement for one app and its signing fingerprints.
     pub fn new(
@@ -220,6 +251,7 @@ impl AndroidAssetLinks {
                 .collect(),
         }
     }
+
     /// Render the statement list as the JSON body to serve at the well-known path.
     pub fn to_json(&self) -> Value {
         json!(
@@ -229,6 +261,7 @@ impl AndroidAssetLinks {
         )
     }
 }
+
 /// Shorthand for [`AppleAppSiteAssociation::new`] followed by
 /// [`AppleAppSiteAssociation::to_json`].
 pub fn apple_app_site_association(
@@ -238,6 +271,7 @@ pub fn apple_app_site_association(
 ) -> Value {
     AppleAppSiteAssociation::new(team_id, bundle_id, paths).to_json()
 }
+
 /// Shorthand for [`AndroidAssetLinks::new`] followed by
 /// [`AndroidAssetLinks::to_json`].
 pub fn android_asset_links(
@@ -246,6 +280,7 @@ pub fn android_asset_links(
 ) -> Value {
     AndroidAssetLinks::new(package_name, sha256_cert_fingerprints).to_json()
 }
+
 /// Define the server route that serves the `apple-app-site-association`
 /// file, so iOS universal links resolve for the given team, bundle, and
 /// paths.
@@ -264,6 +299,7 @@ macro_rules! ios_app_site_association_route {
         $bundle_id, [$($path),*]))) }
     };
 }
+
 /// Define the server route that serves `assetlinks.json`, so Android App
 /// Links resolve for the given package and signing fingerprints.
 ///
@@ -281,15 +317,18 @@ macro_rules! android_asset_links_route {
         [$($fingerprint),*]))) }
     };
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     fn production_source() -> &'static str {
         include_str!("deep_links.rs")
             .split("#[cfg(test)]")
             .next()
             .expect("source should split before tests")
     }
+
     #[test]
     fn generates_apple_app_site_association() {
         let association = AppleAppSiteAssociation::new(
@@ -307,6 +346,7 @@ mod tests {
             ),
         );
     }
+
     #[test]
     fn generates_android_asset_links() {
         assert_eq!(
@@ -318,6 +358,7 @@ mod tests {
             ),
         );
     }
+
     #[test]
     fn exports_ios_and_android_route_macros() {
         let source = production_source();

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+
 /// Declared for its side effect: this is what tells `dx` to build and bundle
 /// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
 /// because the macro's own bindings resolve classes against the calling
@@ -8,26 +9,39 @@ use serde::{Deserialize, Serialize};
 unsafe extern "Kotlin" {
     pub type InAppPurchasesPlugin;
 }
+
 #[cfg(target_os = "android")]
 const IN_APP_PURCHASES_CLASS: &str =
     "dev.dioxus.g3_native_plugins.in_app_purchases.InAppPurchasesPlugin";
+
 #[cfg(target_os = "android")]
 type InAppPurchasesHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(target_os = "ios")]
 type InAppPurchasesHandle = InAppPurchasesPlugin;
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type InAppPurchasesPlugin;
+
     pub fn prepareFromRust(this: &InAppPurchasesPlugin);
+
     pub fn startProductsRequestFromRust(this: &InAppPurchasesPlugin, idsJson: String);
+
     pub fn takeProductsFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
+
     pub fn startPurchaseFromRust(this: &InAppPurchasesPlugin, payloadJson: String);
+
     pub fn startRestoreFromRust(this: &InAppPurchasesPlugin);
+
     pub fn takeEntitlementsFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
+
     pub fn finishFromRust(this: &InAppPurchasesPlugin, payloadJson: String);
+
     pub fn getPurchaseStateFromRust(this: &InAppPurchasesPlugin) -> Option<String>;
 }
+
 /// What kind of thing a product is, which decides how it is finished.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -41,6 +55,7 @@ pub enum ProductKind {
     /// Renews until cancelled.
     Subscription,
 }
+
 /// A subscription's billing period.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +65,7 @@ pub struct SubscriptionPeriod {
     /// How many of [`unit`](SubscriptionPeriod::unit) make up one period.
     pub count: u32,
 }
+
 /// A specific deal on a subscription: the standard price, an introductory
 /// rate, or a free trial.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -70,6 +86,7 @@ pub struct SubscriptionOffer {
     /// Whether this offer costs nothing for its period.
     pub is_free_trial: bool,
 }
+
 /// Something the app can sell.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,6 +110,7 @@ pub struct Product {
     /// Deals available on a subscription. Empty for one-time products.
     pub offers: Vec<SubscriptionOffer>,
 }
+
 /// Something the user owns.
 #[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -127,6 +145,7 @@ pub struct Entitlement {
     /// left unacknowledged for three days.
     pub needs_finishing: bool,
 }
+
 impl std::fmt::Debug for Entitlement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Entitlement")
@@ -152,6 +171,7 @@ pub struct AttributedEntitlement {
     #[serde(default)]
     pub app_account_token: Option<String>,
 }
+
 impl std::fmt::Debug for AttributedEntitlement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AttributedEntitlement")
@@ -194,6 +214,7 @@ pub struct ExternalContentLinkToken {
     /// Send this to the payment backend and later report it to Google Play.
     pub external_transaction_token: String,
 }
+
 /// Whether a purchase is on screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PurchaseState {
@@ -203,6 +224,7 @@ pub enum PurchaseState {
     /// The store's purchase sheet is up, or the result is still settling.
     Purchasing,
 }
+
 /// Selling things through the platform's own store.
 ///
 /// Both stores are asynchronous and neither will let a purchase be awaited
@@ -251,18 +273,22 @@ pub enum PurchaseState {
 pub struct InAppPurchases {
     plugin: Option<InAppPurchasesHandle>,
 }
+
 /// The inert store facade: see the native [`InAppPurchases`] for the contract.
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 pub struct InAppPurchases;
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl InAppPurchases {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&InAppPurchasesHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = InAppPurchasesHandle::new(IN_APP_PURCHASES_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = InAppPurchasesPlugin::new()
                 .map_err(|error| format!("Failed to create InAppPurchasesPlugin: {error:?}"))?;
@@ -270,6 +296,7 @@ impl InAppPurchases {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Connect to the store and start listening for transactions.
     ///
     /// Call this at startup rather than at the point of sale. Both platforms
@@ -278,23 +305,29 @@ impl InAppPurchases {
     /// only a listener that is already running catches them.
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("prepareFromRust")?;
+
         #[cfg(target_os = "ios")]
         prepareFromRust(plugin)?;
         Ok(())
     }
+
     /// Look up products by their store identifiers.
     pub fn start_products_request(&mut self, ids: &[String]) -> Result<(), String> {
         let ids = serde_json::to_string(ids)
             .map_err(|error| format!("Failed to encode product ids: {error}"))?;
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str("startProductsRequestFromRust", &ids)?;
+
         #[cfg(target_os = "ios")]
         startProductsRequestFromRust(plugin, ids)?;
         Ok(())
     }
+
     /// Take the catalogue once it arrives, or `Ok(None)` while it is still
     /// loading. Handed over once, then cleared.
     ///
@@ -303,8 +336,10 @@ impl InAppPurchases {
     /// is not approved yet, not that the code is wrong.
     pub fn poll_products(&mut self) -> Result<Option<Vec<Product>>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let taken = plugin.call_string("takeProductsFromRust")?;
+
         #[cfg(target_os = "ios")]
         let taken = takeProductsFromRust(plugin)?;
         let Some(json) = taken else {
@@ -312,6 +347,7 @@ impl InAppPurchases {
         };
         Self::decode(&json, "products")
     }
+
     /// Put the store's purchase sheet on screen.
     ///
     /// `offer_id` picks a specific [`SubscriptionOffer`]; `None` buys at the
@@ -329,12 +365,14 @@ impl InAppPurchases {
         offer_id: Option<&str>,
     ) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str_str(
             "startPurchaseFromRust",
             product_id,
             offer_id.unwrap_or_default(),
         )?;
+
         #[cfg(target_os = "ios")]
         {
             let payload = serde_json::to_string(&serde_json::json!({
@@ -346,6 +384,7 @@ impl InAppPurchases {
         }
         Ok(())
     }
+
     /// Start a purchase bound to an opaque app-account UUID from your backend.
     /// iOS passes it to StoreKit's `appAccountToken`; Android uses the obfuscated
     /// account ID. Do not pass an email or a raw database identifier. The UUID
@@ -360,8 +399,10 @@ impl InAppPurchases {
     ) -> Result<(), String> {
         let payload = account_purchase_payload(product_id, offer_id, account_token)?;
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str("startPurchaseForAccountFromRust", &payload)?;
+
         #[cfg(target_os = "ios")]
         startPurchaseFromRust(plugin, payload)?;
         Ok(())
@@ -374,12 +415,15 @@ impl InAppPurchases {
     /// user pressed rather than running it at launch.
     pub fn start_restore(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("startRestoreFromRust")?;
+
         #[cfg(target_os = "ios")]
         startRestoreFromRust(plugin)?;
         Ok(())
     }
+
     /// Take everything the user owns, whenever there is news.
     ///
     /// `Ok(None)` when nothing has changed since the last poll. A batch is the
@@ -387,8 +431,10 @@ impl InAppPurchases {
     /// whole truth about what is owned.
     pub fn poll_entitlements(&mut self) -> Result<Option<Vec<Entitlement>>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let taken = plugin.call_string("takeEntitlementsFromRust")?;
+
         #[cfg(target_os = "ios")]
         let taken = takeEntitlementsFromRust(plugin)?;
         let Some(json) = taken else {
@@ -396,6 +442,7 @@ impl InAppPurchases {
         };
         Self::decode(&json, "entitlements")
     }
+
     /// Take the ownership batch together with original app-account hints.
     /// Choose this or `poll_entitlements`: both consume the same shared slot.
     /// Missing attribution stays `None`; it never inherits a launch/current user.
@@ -403,8 +450,10 @@ impl InAppPurchases {
         &mut self,
     ) -> Result<Option<Vec<AttributedEntitlement>>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let taken = plugin.call_string("takeEntitlementsFromRust")?;
+
         #[cfg(target_os = "ios")]
         let taken = takeEntitlementsFromRust(plugin)?;
         let Some(json) = taken else { return Ok(None) };
@@ -422,8 +471,10 @@ impl InAppPurchases {
     /// Android refunds purchases left unfinished for three days.
     pub fn finish(&mut self, transaction_id: &str, consume: bool) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str_bool("finishFromRust", transaction_id, consume)?;
+
         #[cfg(target_os = "ios")]
         {
             let payload = serde_json::to_string(&serde_json::json!({
@@ -435,6 +486,7 @@ impl InAppPurchases {
         }
         Ok(())
     }
+
     /// Ask Google Play for a fresh token for one external checkout visit.
     ///
     /// Android only. The result is asynchronous and must not be cached or
@@ -445,6 +497,7 @@ impl InAppPurchases {
             .call_unit("startExternalContentLinkTokenFromRust")?;
         Ok(())
     }
+
     /// Take the fresh Google Play external-transaction token once available.
     pub fn poll_external_content_link_token(
         &mut self,
@@ -459,9 +512,11 @@ impl InAppPurchases {
             };
             return Self::decode(&json, "external content link token");
         }
+
         #[cfg(target_os = "ios")]
         Ok(None)
     }
+
     /// Open the checkout URL through Google Play's external-link flow.
     pub fn launch_external_content_link(&mut self, url: &str) -> Result<(), String> {
         #[cfg(target_os = "android")]
@@ -469,6 +524,7 @@ impl InAppPurchases {
             .call_unit_str("launchExternalContentLinkFromRust", url)?;
         Ok(())
     }
+
     /// Take confirmation that Google Play launched the external URL.
     pub fn poll_external_content_link_launch(&mut self) -> Result<Option<()>, String> {
         #[cfg(target_os = "android")]
@@ -482,19 +538,23 @@ impl InAppPurchases {
             let _: Option<serde_json::Value> = Self::decode(&json, "external content link launch")?;
             return Ok(Some(()));
         }
+
         #[cfg(target_os = "ios")]
         Ok(None)
     }
+
     /// Whether a purchase is on screen, for disabling a buy button.
     pub fn purchase_state(&mut self) -> PurchaseState {
         let Ok(plugin) = self.get_plugin() else {
             return PurchaseState::Idle;
         };
+
         #[cfg(target_os = "android")]
         let state = plugin
             .call_string("getPurchaseStateFromRust")
             .ok()
             .flatten();
+
         #[cfg(target_os = "ios")]
         let state = getPurchaseStateFromRust(plugin).ok().flatten();
         match state.as_deref() {
@@ -502,6 +562,7 @@ impl InAppPurchases {
             _ => PurchaseState::Idle,
         }
     }
+
     fn decode<T: serde::de::DeserializeOwned>(json: &str, what: &str) -> Result<Option<T>, String> {
         let value: serde_json::Value = serde_json::from_str(json)
             .map_err(|error| format!("Failed to read {what}: {error}"))?;
@@ -513,23 +574,28 @@ impl InAppPurchases {
             .map_err(|error| format!("Failed to read {what}: {error}"))
     }
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl InAppPurchases {
     pub(crate) fn new() -> Self {
         Self
     }
+
     /// No-op: there is no store to connect to on these targets.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: no catalogue is ever fetched.
     pub fn start_products_request(&mut self, _ids: &[String]) -> Result<(), String> {
         Ok(())
     }
+
     /// Always `None`.
     pub fn poll_products(&mut self) -> Result<Option<Vec<Product>>, String> {
         Ok(None)
     }
+
     /// No-op: nothing can be bought on these targets.
     pub fn start_purchase(
         &mut self,
@@ -538,6 +604,7 @@ impl InAppPurchases {
     ) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: no account-attributed store exists on these targets.
     pub fn start_purchase_for_account(
         &mut self,
@@ -547,42 +614,51 @@ impl InAppPurchases {
     ) -> Result<(), String> {
         Ok(())
     }
+
     /// Always `None`: no account-attributed store exists on these targets.
     pub fn poll_attributed_entitlements(
         &mut self,
     ) -> Result<Option<Vec<AttributedEntitlement>>, String> {
         Ok(None)
     }
+
     /// No-op.
     pub fn start_restore(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Always `None`: nothing is owned through a store here.
     pub fn poll_entitlements(&mut self) -> Result<Option<Vec<Entitlement>>, String> {
         Ok(None)
     }
+
     /// No-op: there is no transaction to finish.
     pub fn finish(&mut self, _transaction_id: &str, _consume: bool) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op outside Android.
     pub fn start_external_content_link_token(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No external-link token exists outside Android.
     pub fn poll_external_content_link_token(
         &mut self,
     ) -> Result<Option<ExternalContentLinkToken>, String> {
         Ok(None)
     }
+
     /// No-op outside Android.
     pub fn launch_external_content_link(&mut self, _url: &str) -> Result<(), String> {
         Ok(())
     }
+
     /// No launch result exists outside Android.
     pub fn poll_external_content_link_launch(&mut self) -> Result<Option<()>, String> {
         Ok(None)
     }
+
     /// Always [`PurchaseState::Idle`].
     pub fn purchase_state(&mut self) -> PurchaseState {
         PurchaseState::Idle
@@ -592,6 +668,7 @@ impl InAppPurchases {
 #[cfg(test)]
 mod account_attribution_tests {
     use super::*;
+
     #[test]
     fn account_payload_is_opaque_validated_and_serialized_as_data() {
         let account = "B91F6307-5CBE-4145-9042-45ACDB7C2544";
@@ -611,6 +688,7 @@ mod account_attribution_tests {
             assert!(account_purchase_payload("product", None, bad).is_err());
         }
     }
+
     #[test]
     fn old_batches_keep_missing_attribution_and_debug_never_prints_proofs_or_ids() {
         let mut item = AttributedEntitlement {

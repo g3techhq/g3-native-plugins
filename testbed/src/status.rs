@@ -60,6 +60,7 @@ pub fn Check(area: String, label: String) -> Element {
         // Untried is not a failure, and should not look like one.
         None => ("idle", "not run", String::new()),
     };
+
     rsx! {
         div { class: "check",
             div { class: "check-head",
@@ -88,6 +89,7 @@ pub fn Summary() -> Element {
                     Status::Waiting => (pass, fail, wait + 1),
                 }
             });
+
     rsx! {
         div { class: "summary",
             span { class: "tally pass", "{passed} passing" }

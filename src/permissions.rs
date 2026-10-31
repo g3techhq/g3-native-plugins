@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+
 /// Whether the app may use something the user has to agree to.
 ///
 /// Shared by every plugin here that asks permission, so an app can handle a

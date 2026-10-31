@@ -10,7 +10,10 @@
 //! README. Where a plugin has no implementation for the current target it
 //! compiles to an inert no-op rather than failing to build, which keeps the
 //! same call sites working on web, desktop, and mobile.
-#![allow(non_snake_case)]
+#![allow(
+    non_snake_case,
+    reason = "Dioxus components and native FFI methods keep their framework names."
+)]
 #![warn(missing_docs)]
 #[cfg(all(
     target_os = "android",
@@ -35,21 +38,35 @@
 // Each plugin uses only the call shapes its Kotlin methods need, so a build
 // with some of the features (an app, or g3-route-transitions' `native-back`)
 // leaves the rest of the bridge unused.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Shared definitions are used by selected platform, server or test builds."
+)]
 mod android_bridge;
+
 #[cfg(feature = "app-info")]
 mod app_info;
+
 #[cfg(feature = "app-info")]
 pub use app_info::{AppInfo, installed_app_info};
+
 /// Both halves of deep linking: builders for the `apple-app-site-association`
 /// and `assetlinks.json` files that make universal links and App Links resolve
 /// to the app, and — behind the `deep-links` feature — the plugin that receives
 /// the URL once one does.
-#[cfg_attr(all(feature = "deep-links", target_os = "ios"), allow(missing_docs))]
+#[cfg_attr(
+    all(feature = "deep-links", target_os = "ios"),
+    allow(
+        missing_docs,
+        reason = "These native FFI declarations mirror the platform bridge rather than the Rust API."
+    )
+)]
 pub mod deep_links;
+
 /// The permission states plugins here report, in one place so an app can treat
 /// a refusal the same way whatever was refused.
 pub mod permissions;
+
 #[cfg(all(
     feature = "deep-links",
     any(
@@ -59,87 +76,116 @@ pub mod permissions;
         target_os = "macos"
     )
 ))]
-#[allow(unused_imports)]
+#[allow(
+    unused_imports,
+    reason = "The shared facade exposes imports used only by selected platform features."
+)]
 pub use deep_links::DeepLinks;
-#[allow(unused_imports)]
+
+#[allow(
+    unused_imports,
+    reason = "The shared facade exposes imports used only by selected platform features."
+)]
 pub use permissions::PermissionState;
 cfg_if::cfg_if! {
     if #[cfg(feature = "clipboard")] { mod clipboard;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use clipboard::Clipboard; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use clipboard::Clipboard; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "appearance")] { mod appearance;
-    #[allow(unused_imports)] pub use appearance::SystemAppearance; }
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use appearance::SystemAppearance; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "auth")] { mod auth;
+
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use auth::Auth; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use auth::Auth; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "back-button")] { mod back_button;
-    #[allow(unused_imports)] pub use back_button::NATIVE_BACK_EVENT;
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use back_button::NATIVE_BACK_EVENT;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use back_button::BackButton; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use back_button::BackButton; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "camera-microphone")] { mod camera_microphone;
-    #[allow(unused_imports)] pub use camera_microphone::CapturePermissions;
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use camera_microphone::CapturePermissions;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use camera_microphone::CameraMicrophone; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use camera_microphone::CameraMicrophone; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "external-url")] { mod external_url;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use external_url::ExternalUrl; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use external_url::ExternalUrl; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "geolocation")] { mod geolocation;
-    #[allow(unused_imports)] pub use geolocation::{Coordinates, LocationState, PermissionStatus, Position, PositionOptions};
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use geolocation::{Coordinates, LocationState, PermissionStatus, Position, PositionOptions};
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use geolocation::Geolocation; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use geolocation::Geolocation; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "in-app-purchases")] { mod in_app_purchases;
-    #[allow(unused_imports)] pub use in_app_purchases::{AttributedEntitlement, Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use in_app_purchases::{AttributedEntitlement, Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use in_app_purchases::InAppPurchases; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use in_app_purchases::InAppPurchases; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "media")] { mod media;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use media::Media;
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use media::Media;
     }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "notifications")] { mod notifications;
-    #[allow(unused_imports)] pub use notifications::{Action, ActionType, Channel, DeliveredNotification, Importance, Notification, NotificationEvent, PendingNotification, Schedule, ScheduleInterval, Visibility, TAP_ACTION};
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use notifications::{Action, ActionType, Channel, DeliveredNotification, Importance, Notification, NotificationEvent, PendingNotification, Schedule, ScheduleInterval, Visibility, TAP_ACTION};
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use notifications::Notifications; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use notifications::Notifications; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "push-notifications")] { mod push_notifications;
-    #[allow(unused_imports)] pub use push_notifications::{FirebaseOptions, PushEvent, PushService, PushToken};
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use push_notifications::{FirebaseOptions, PushEvent, PushService, PushToken};
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use push_notifications::PushNotifications; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use push_notifications::PushNotifications; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "safe-area")] { mod safe_area;
-    #[allow(unused_imports)] pub use safe_area::SafeArea; }
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use safe_area::SafeArea; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "storage")] { mod storage;
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use storage::KeyValueStore; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use storage::KeyValueStore; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "updater")] { mod updater;
-    #[allow(unused_imports)] pub use updater::{bundle_content_type, DownloadProgress, Update, UpdaterConfig, UpdaterState};
+
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use updater::{bundle_content_type, DownloadProgress, Update, UpdaterConfig, UpdaterState};
+
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports)] pub use updater::Updater; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use updater::Updater; }
 }
 use dioxus::prelude::*;
+
 #[cfg(all(
     any(
         feature = "appearance",
@@ -164,8 +210,12 @@ use dioxus::prelude::*;
         target_os = "macos"
     )
 ))]
-#[allow(unused_imports)]
+#[allow(
+    unused_imports,
+    reason = "The shared facade exposes imports used only by selected platform features."
+)]
 use dioxus_signals::Signal;
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -247,6 +297,7 @@ pub struct NativePlugins {
     #[cfg(feature = "safe-area")]
     pub safe_area: Signal<SafeArea>,
 }
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -301,6 +352,7 @@ impl NativePlugins {
         }
     }
 }
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -312,6 +364,7 @@ impl Default for NativePlugins {
         Self::new()
     }
 }
+
 #[component]
 pub fn NativePluginsProvider(children: Element) -> Element {
     #[cfg(any(
@@ -328,10 +381,12 @@ pub fn NativePluginsProvider(children: Element) -> Element {
         let mut safe_area = _plugins.safe_area;
         let _ = safe_area.write().start();
     });
+
     rsx! {
         {children}
     }
 }
+
 #[cfg(test)]
 mod tests {
     fn production_source(source: &str) -> &str {
@@ -340,6 +395,7 @@ mod tests {
             .next()
             .expect("source should split before tests")
     }
+
     #[test]
     fn appearance_asks_the_system_not_the_activity_theme() {
         let source = production_source(include_str!("appearance.rs"));
@@ -372,6 +428,7 @@ mod tests {
         assert!(source.contains("pub fn fall_through"));
         assert!(source.contains("pub const NATIVE_BACK_EVENT"));
     }
+
     #[test]
     fn ios_back_button_raises_the_same_event_from_an_edge_swipe() {
         let source = production_source(include_str!("back_button.rs"));
@@ -390,6 +447,7 @@ mod tests {
         assert!(swift.contains("panGestureRecognizer.require(toFail: created)"));
         assert!(swift.contains("created.isEnabled = false"));
     }
+
     #[test]
     fn deep_links_are_collected_from_both_launch_paths() {
         let source = production_source(include_str!("deep_links.rs"));
@@ -422,6 +480,7 @@ mod tests {
         // A cold-start link is reported through both paths; only one survives.
         assert!(swift.contains("duplicateWindow"));
     }
+
     #[test]
     fn android_plugins_resolve_classes_through_the_app_loader() {
         // Learned the hard way on a device: JNI's FindClass resolves against
@@ -472,6 +531,7 @@ mod tests {
             assert!(production.contains("crate::android_bridge::AndroidPlugin"));
         }
     }
+
     #[test]
     fn storage_encrypts_values_and_refuses_to_pretend_on_macos() {
         let source = production_source(include_str!("storage.rs"));
@@ -536,6 +596,7 @@ mod tests {
         assert!(swift.contains("SecItemAdd"));
         assert!(swift.contains("errSecItemNotFound"));
     }
+
     #[test]
     fn camera_microphone_leaves_the_webview_permission_bridge_to_wry() {
         let source = production_source(include_str!("camera_microphone.rs"));
@@ -564,6 +625,7 @@ mod tests {
         assert!(swift.contains("playAndRecord"));
         assert!(swift.contains("defaultToSpeaker"));
     }
+
     #[test]
     fn permission_state_is_shared_rather_than_duplicated_per_plugin() {
         // Both plugins glob-export at the crate root, so a second definition
@@ -577,6 +639,7 @@ mod tests {
         assert!(geolocation.contains("use crate::permissions::PermissionState;"));
         assert!(capture.contains("use crate::permissions::PermissionState;"));
     }
+
     #[test]
     fn geolocation_starts_and_polls_rather_than_blocking() {
         let source = production_source(include_str!("geolocation.rs"));
@@ -610,6 +673,7 @@ mod tests {
         // Negative CoreLocation accuracies mean invalid, not precise.
         assert!(swift.contains("location.verticalAccuracy >= 0"));
     }
+
     #[test]
     fn in_app_purchases_start_and_poll_on_both_stores() {
         let source = production_source(include_str!("in_app_purchases.rs"));
@@ -663,6 +727,7 @@ mod tests {
         assert!(swift.contains("renewal.willAutoRenew"));
         assert!(store.contains("nonRenewable"));
     }
+
     #[test]
     fn purchase_account_attribution_contract_matches_each_platform() {
         let rust = production_source(include_str!("in_app_purchases.rs"));
@@ -684,6 +749,7 @@ mod tests {
             assert!(source.contains("appAccountToken"));
         }
     }
+
     #[test]
     fn ios_media_plugin_owns_background_audio_and_lock_screen_controls() {
         let source = production_source(include_str!("media.rs"));
@@ -703,6 +769,7 @@ mod tests {
         assert!(swift.contains("if !wasActive || titleChanged"));
         assert!(swift.contains("__tawnyPlaybackIntent"));
     }
+
     #[test]
     fn native_plugins_provider_owns_plugin_construction() {
         let source = production_source(include_str!("lib.rs"));
@@ -746,6 +813,7 @@ mod tests {
         assert!(source.contains("impl Default for NativePlugins"));
         assert!(source.contains("Self::new()"));
     }
+
     #[test]
     fn ios_clipboard_plugin_supports_copy_and_scene_safe_share() {
         let swift = include_str!("ios/Sources/ClipboardPlugin.swift");
@@ -761,6 +829,7 @@ mod tests {
         assert!(swift.contains("popover.sourceView = vc.view"));
         assert!(!swift.contains("keyWindow"));
     }
+
     #[test]
     fn ios_plugins_share_one_swift_package_for_current_dx() {
         let manifest = include_str!("ios/Package.swift");
@@ -807,6 +876,7 @@ mod tests {
         assert!(clipboard.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(external_url.contains("#[manganis::ffi(\"src/ios\")]"));
     }
+
     #[test]
     fn android_auth_plugin_exposes_google_sign_in() {
         let auth = include_str!("auth.rs");
@@ -844,6 +914,7 @@ mod tests {
         assert!(!kotlin_auth.contains("TimeUnit"));
         assert!(kotlin_auth.contains("GoogleIdTokenCredential.createFrom"));
     }
+
     #[test]
     fn android_media_plugin_owns_mobile_playback_capabilities() {
         let rust = include_str!("media.rs");
@@ -884,6 +955,7 @@ mod tests {
         assert!(manifest.contains("android:supportsPictureInPicture=\"true\""));
         assert!(manifest.contains("foregroundServiceType=\"mediaPlayback\""));
     }
+
     #[test]
     fn updater_trusts_nothing_before_the_signature_and_keeps_decisions_in_rust() {
         let source = production_source(include_str!("updater.rs"));
@@ -918,6 +990,7 @@ mod tests {
         assert!(!gradle.contains("implementation("));
         assert!(!kotlin.contains(" error("));
     }
+
     #[test]
     fn notifications_survive_reboots_without_claiming_exact_alarms() {
         let source = production_source(include_str!("notifications.rs"));
@@ -972,6 +1045,7 @@ mod tests {
         assert!(swift.contains("UNTextInputNotificationAction"));
         assert!(swift.contains("NotificationCenterRelay.install()"));
     }
+
     #[test]
     fn push_keeps_firebase_out_of_local_only_apps() {
         let source = production_source(include_str!("push_notifications.rs"));
@@ -1000,6 +1074,7 @@ mod tests {
         assert!(swift.contains("didRegisterForRemoteNotificationsWithDeviceToken"));
         assert!(swift.contains("registerForRemoteNotifications()"));
     }
+
     #[test]
     fn plugin_wrapper_constructors_stay_crate_private_and_lazy() {
         for (source, plugin_type, handle_type) in [
@@ -1028,6 +1103,7 @@ mod tests {
             assert!(!source.contains(&format!("plugin: Result<{plugin_type}, String>")));
         }
     }
+
     /// The classes named in a module's Rust source, which the bridge resolves
     /// through `loadClass` at run time.
     fn jni_classes(source: &str) -> Vec<String> {
@@ -1048,6 +1124,7 @@ mod tests {
         }
         found
     }
+
     /// No Java or Kotlin code references a plugin class: the Rust side loads it
     /// by name, so R8 sees it as dead code. Without a keep rule it is stripped
     /// or renamed out of a consuming app's *release* build only, and the

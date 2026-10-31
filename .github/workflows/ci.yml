@@ -35,8 +35,11 @@ jobs:
         with:
           toolchain: 1.95.0
           targets: aarch64-linux-android
+          components: clippy
       - name: Check Android target
         run: cargo check --target aarch64-linux-android --all-features
+      - name: Lint Android testbed
+        run: cargo clippy --manifest-path testbed/Cargo.toml --target aarch64-linux-android --all-targets --no-deps -- -D warnings
       - name: Install Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
@@ -63,10 +66,13 @@ jobs:
         with:
           toolchain: 1.95.0
           targets: aarch64-apple-ios-sim
+          components: clippy
       - name: Check macOS target
         run: cargo check --all-features
       - name: Check iOS Simulator target
         run: cargo check --target aarch64-apple-ios-sim --all-features
+      - name: Lint iOS Simulator testbed
+        run: cargo clippy --manifest-path testbed/Cargo.toml --target aarch64-apple-ios-sim --all-targets --no-deps -- -D warnings
       - name: Install Dioxus CLI
         # The fork's CLI, to match the fork's Dioxus: dx and the dioxus crates
         # must come from the same source.

@@ -20,6 +20,7 @@
 unsafe extern "Kotlin" {
     pub type SafeAreaPlugin;
 }
+
 #[cfg(target_os = "android")]
 const SAFE_AREA_CLASS: &str = "dev.dioxus.g3_native_plugins.safe_area.SafeAreaPlugin";
 
@@ -45,6 +46,7 @@ impl SafeArea {
         {
             self.plugin()?.keep_unit("startFromRust")
         }
+
         #[cfg(not(target_os = "android"))]
         Ok(())
     }
@@ -58,6 +60,7 @@ impl SafeArea {
             self.plugin()?
                 .keep_unit_bool("setBarsHiddenFromRust", hidden)
         }
+
         #[cfg(not(target_os = "android"))]
         {
             let _ = hidden;

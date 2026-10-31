@@ -21,6 +21,7 @@ fn Card(title: String, what: String, children: Element) -> Element {
                 h2 { "{title}" }
                 span { class: "what", "{what}" }
             }
+
             div { class: "card", {children} }
         }
     }
@@ -37,6 +38,7 @@ fn Action(label: String, onclick: EventHandler<MouseEvent>) -> Element {
 pub fn StorageCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Storage", what: "Keystore-encrypted key/value",
             Check { area: "storage", label: "Round trip on launch" }
@@ -72,6 +74,7 @@ pub fn StorageCard() -> Element {
 pub fn BackButtonCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Back button", what: "System back as an app event",
             Check { area: "back-button", label: "Plugin ready" }
@@ -113,6 +116,7 @@ pub fn DeepLinksCard() -> Element {
 pub fn GeolocationCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Geolocation", what: "Permission and a position fix",
             Check { area: "geolocation.permissions", label: "Permission state" }
@@ -205,6 +209,7 @@ pub fn CaptureCard() -> Element {
     // The video element stays in the DOM whether or not it is showing, so the
     // script above can always find it; only its visibility changes.
     let mut streaming = use_signal(|| false);
+
     rsx! {
         Card { title: "Camera and microphone", what: "Permission around getUserMedia",
             Check { area: "camera-microphone.permissions", label: "Permission state" }
@@ -213,6 +218,7 @@ pub fn CaptureCard() -> Element {
                 class: if streaming() { "preview-wrap on" } else { "preview-wrap" },
                 video { id: "g3-camera-preview", class: "preview" }
             }
+
             div { class: "row",
                 Action { label: "Check", onclick: move |_| {
                     let mut plugins = plugins;
@@ -269,6 +275,7 @@ pub fn CaptureCard() -> Element {
 pub fn ClipboardCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Clipboard", what: "Copy and the native share sheet",
             Check { area: "clipboard.copy", label: "Copy" }
@@ -297,6 +304,7 @@ pub fn ClipboardCard() -> Element {
 pub fn MediaCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Media", what: "Background playback and orientation",
             Check { area: "media", label: "Plugin ready" }
@@ -338,6 +346,7 @@ pub fn MediaCard() -> Element {
 pub fn ExternalUrlCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "External URL", what: "Hand a link to the system browser",
             Check { area: "external-url", label: "Open in browser" }
@@ -356,6 +365,7 @@ pub fn ExternalUrlCard() -> Element {
 #[component]
 pub fn AppInfoCard() -> Element {
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "App info", what: "Installed package version and native build",
             Check { area: "app-info", label: "Read installed metadata" }
@@ -374,6 +384,7 @@ pub fn AppInfoCard() -> Element {
 pub fn PurchasesCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "In-app purchases", what: "Store connection, products, ownership",
             Check { area: "in-app-purchases", label: "Store connected" }
@@ -433,15 +444,18 @@ const GOOGLE_SERVER_CLIENT_ID: &str =
 pub fn AuthCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Auth", what: "Google on Android, Apple on iOS",
             Check { area: "auth", label: "Sign-in" }
             div { class: "row",
                 Action { label: "Start sign-in", onclick: move |_| {
                     let mut plugins = plugins;
+
                     #[cfg(target_os = "android")]
                     let started = plugins.auth.write()
                         .start_google_auth(GOOGLE_SERVER_CLIENT_ID);
+
                     #[cfg(any(target_os = "ios", target_os = "macos"))]
                     let started = plugins.auth.write().start_apple_auth("test-state", "test-nonce");
                     if let Err(error) = started {
@@ -493,6 +507,7 @@ pub fn AuthCard() -> Element {
 pub fn NotificationsCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Notifications", what: "Local notifications, now and later",
             Check { area: "notifications.permissions", label: "Permission state" }
@@ -561,6 +576,7 @@ pub fn NotificationsCard() -> Element {
 pub fn PushCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Push", what: "APNs or FCM token and messages",
             Check { area: "push.token", label: "Token" }
@@ -584,6 +600,7 @@ pub fn PushCard() -> Element {
 pub fn UpdaterCard() -> Element {
     let plugins = use_context::<NativePlugins>();
     let reporter = use_context::<Reporter>();
+
     rsx! {
         Card { title: "Updater", what: "Signed over-the-air bundles",
             Check { area: "updater", label: "Launched and confirmed" }

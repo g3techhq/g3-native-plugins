@@ -14,8 +14,11 @@
 //! buttons.
 
 mod cards;
+
 mod report;
+
 mod status;
+
 mod style;
 
 use dioxus::prelude::*;

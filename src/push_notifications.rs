@@ -1,6 +1,7 @@
 #[cfg(any(target_os = "android", target_os = "ios", test))]
 use serde::Deserialize;
 use serde::Serialize;
+
 /// Declared for its side effect: this is what tells `dx` to build and bundle
 /// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
 /// because the macro's own bindings resolve classes against the calling
@@ -10,23 +11,33 @@ use serde::Serialize;
 unsafe extern "Kotlin" {
     pub type PushNotificationsPlugin;
 }
+
 #[cfg(target_os = "android")]
 const PUSH_NOTIFICATIONS_CLASS: &str =
     "dev.dioxus.g3_native_plugins.push_notifications.PushNotificationsPlugin";
+
 #[cfg(target_os = "android")]
 type PushNotificationsHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(target_os = "ios")]
 type PushNotificationsHandle = PushNotificationsPlugin;
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type PushNotificationsPlugin;
+
     pub fn prepareFromRust(this: &PushNotificationsPlugin);
+
     pub fn registerFromRust(this: &PushNotificationsPlugin, configJson: String) -> Option<String>;
+
     pub fn unregisterFromRust(this: &PushNotificationsPlugin) -> Option<String>;
+
     pub fn tokenFromRust(this: &PushNotificationsPlugin) -> Option<String>;
+
     pub fn takeEventFromRust(this: &PushNotificationsPlugin) -> Option<String>;
 }
+
 /// The four values Firebase Cloud Messaging needs on Android, from the
 /// Firebase console's Android app settings or its `google-services.json`.
 /// Ignored on iOS, which receives push from APNs directly.
@@ -42,6 +53,7 @@ pub struct FirebaseOptions {
     /// `project_number`, which FCM calls the sender id.
     pub sender_id: String,
 }
+
 /// Which service a [`PushToken`] addresses, and so which API the server sends
 /// through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
@@ -52,6 +64,7 @@ pub enum PushService {
     /// Firebase Cloud Messaging: an Android registration token.
     Fcm,
 }
+
 /// The address a server pushes to for this install.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct PushToken {
@@ -61,6 +74,7 @@ pub struct PushToken {
     /// and each change arrives as a [`PushEvent::Token`].
     pub token: String,
 }
+
 /// Something that happened with remote push.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PushEvent {
@@ -87,6 +101,7 @@ pub enum PushEvent {
         data: serde_json::Map<String, serde_json::Value>,
     },
 }
+
 /// How events cross the bridge. Kept apart from [`PushEvent`] so the public
 /// type can carry the service a token belongs to, which only Rust knows.
 #[cfg(any(target_os = "android", target_os = "ios", test))]
@@ -115,10 +130,12 @@ enum WireEvent {
         data: serde_json::Map<String, serde_json::Value>,
     },
 }
+
 #[cfg(any(target_os = "android", target_os = "ios", test))]
 fn tap() -> String {
     crate::notifications::TAP_ACTION.to_string()
 }
+
 #[cfg(any(target_os = "android", target_os = "ios", test))]
 impl WireEvent {
     fn into_event(self, service: PushService) -> PushEvent {
@@ -130,6 +147,7 @@ impl WireEvent {
         }
     }
 }
+
 /// Remote push: APNs on iOS, Firebase Cloud Messaging on Android.
 ///
 /// ```rust,ignore
@@ -176,14 +194,18 @@ impl WireEvent {
 pub struct PushNotifications {
     plugin: Option<PushNotificationsHandle>,
 }
+
 /// The inert push facade: see the native [`PushNotifications`] for the
 /// contract.
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 pub struct PushNotifications;
+
 #[cfg(target_os = "android")]
 const SERVICE: PushService = PushService::Fcm;
+
 #[cfg(target_os = "ios")]
 const SERVICE: PushService = PushService::Apns;
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 fn check(reported: Option<String>) -> Result<(), String> {
     let Some(raw) = reported else {
@@ -197,6 +219,7 @@ fn check(reported: Option<String>) -> Result<(), String> {
         Err(_) => Ok(()),
     }
 }
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl PushNotifications {
     /// Create the facade without touching the platform.
@@ -206,10 +229,12 @@ impl PushNotifications {
     pub fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&PushNotificationsHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = PushNotificationsHandle::new(PUSH_NOTIFICATIONS_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = PushNotificationsPlugin::new()
                 .map_err(|error| format!("Failed to create PushNotificationsPlugin: {error:?}"))?;
@@ -217,16 +242,20 @@ impl PushNotifications {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Start listening for taps on pushes and, on iOS, for the token. Call it
     /// in `main`: a push that launched the app is delivered during launch.
     pub fn prepare(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.keep_unit("prepareFromRust")?;
+
         #[cfg(target_os = "ios")]
         prepareFromRust(plugin)?;
         Ok(())
     }
+
     /// Register with APNs or FCM. Returns at once; the token arrives as a
     /// [`PushEvent::Token`] and from [`token`](PushNotifications::token).
     ///
@@ -235,25 +264,33 @@ impl PushNotifications {
     pub fn register(&mut self, firebase: Option<&FirebaseOptions>) -> Result<(), String> {
         let config = serde_json::json!({ "firebase": firebase }).to_string();
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         return check(plugin.call_string_str("registerFromRust", &config)?);
+
         #[cfg(target_os = "ios")]
         return check(registerFromRust(plugin, config)?);
     }
+
     /// Stop receiving pushes: the token is invalidated, and a later
     /// [`register`](PushNotifications::register) gets a new one.
     pub fn unregister(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         return check(plugin.call_string("unregisterFromRust")?);
+
         #[cfg(target_os = "ios")]
         return check(unregisterFromRust(plugin)?);
     }
+
     /// The last token this install received, if any.
     pub fn token(&mut self) -> Result<Option<PushToken>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let token = plugin.call_string("tokenFromRust")?;
+
         #[cfg(target_os = "ios")]
         let token = tokenFromRust(plugin)?;
         Ok(token.map(|token| PushToken {
@@ -261,12 +298,15 @@ impl PushNotifications {
             token,
         }))
     }
+
     /// The oldest event not yet handled, or `None` when none are waiting.
     /// Drain in a loop until it returns `None`.
     pub fn take_event(&mut self) -> Result<Option<PushEvent>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let reported = plugin.call_string("takeEventFromRust")?;
+
         #[cfg(target_os = "ios")]
         let reported = takeEventFromRust(plugin)?;
         let Some(raw) = reported else {
@@ -277,33 +317,40 @@ impl PushNotifications {
         Ok(Some(wire.into_event(SERVICE)))
     }
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl PushNotifications {
     /// Create the inert facade.
     pub fn new() -> Self {
         Self
     }
+
     /// No-op.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: no token will arrive.
     pub fn register(&mut self, _firebase: Option<&FirebaseOptions>) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op.
     pub fn unregister(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Always `None`.
     pub fn token(&mut self) -> Result<Option<PushToken>, String> {
         Ok(None)
     }
+
     /// Always `None`.
     pub fn take_event(&mut self) -> Result<Option<PushEvent>, String> {
         Ok(None)
     }
 }
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",
@@ -315,14 +362,17 @@ impl Default for PushNotifications {
         Self::new()
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     fn event(json: &str, service: PushService) -> PushEvent {
         serde_json::from_str::<WireEvent>(json)
             .expect("wire event should parse")
             .into_event(service)
     }
+
     #[test]
     fn events_from_either_platform_parse_into_the_public_shape() {
         assert_eq!(
@@ -356,6 +406,7 @@ mod tests {
             PushEvent::RegistrationFailed("no entitlement".to_string())
         );
     }
+
     #[test]
     fn firebase_options_reach_kotlin_under_the_names_it_reads() {
         let options = FirebaseOptions {

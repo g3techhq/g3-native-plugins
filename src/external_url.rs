@@ -6,38 +6,49 @@
 unsafe extern "Kotlin" {
     pub type ExternalUrlPlugin;
 }
+
 #[cfg(target_os = "android")]
 const EXTERNAL_URL_CLASS: &str = "dev.dioxus.g3_native_plugins.external_url.ExternalUrlPlugin";
+
 #[cfg(target_os = "android")]
 type ExternalUrlHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(target_os = "ios")]
 type ExternalUrlHandle = ExternalUrlPlugin;
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type ExternalUrlPlugin;
+
     pub fn openExternalUrlFromRust(this: &ExternalUrlPlugin, url: String);
 }
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 /// Opens URLs using the native platform browser.
 pub struct ExternalUrl {
     plugin: Option<ExternalUrlHandle>,
 }
+
 #[cfg(target_arch = "wasm32")]
 /// Browser external-navigation support.
 pub struct ExternalUrl;
+
 #[cfg(target_os = "macos")]
 /// An inert external-URL facade used by the macOS smoke-test build.
 pub struct ExternalUrl;
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl ExternalUrl {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&ExternalUrlHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = ExternalUrlHandle::new(EXTERNAL_URL_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = ExternalUrlPlugin::new()
                 .map_err(|error| format!("Failed to create ExternalUrlPlugin: {error:?}"))?;
@@ -45,46 +56,56 @@ impl ExternalUrl {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Initializes the native URL-opening bridge.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
     }
+
     /// Opens `url` outside the app.
     pub fn open(&mut self, url: &str) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str("openExternalUrlFromRust", url)?;
+
         #[cfg(target_os = "ios")]
         openExternalUrlFromRust(plugin, url.to_string())?;
         Ok(())
     }
 }
+
 #[cfg(target_os = "macos")]
 impl ExternalUrl {
     pub(crate) fn new() -> Self {
         Self
     }
+
     /// No-op preparation for the macOS smoke-test build.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op URL request for the macOS smoke-test build.
     pub fn open(&mut self, _url: &str) -> Result<(), String> {
         Ok(())
     }
 }
+
 #[cfg(target_arch = "wasm32")]
 impl ExternalUrl {
     pub(crate) fn new() -> Self {
         Self
     }
+
     /// Verify that a browser window is available.
     pub fn prepare(&mut self) -> Result<(), String> {
         web_sys::window()
             .ok_or_else(|| "Window is not available".to_string())
             .map(|_| ())
     }
+
     /// Navigate the browser to an external URL.
     pub fn open(&mut self, url: &str) -> Result<(), String> {
         let window = web_sys::window().ok_or_else(|| "Window is not available".to_string())?;

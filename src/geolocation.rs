@@ -1,5 +1,6 @@
 use crate::permissions::PermissionState;
 use serde::{Deserialize, Serialize};
+
 /// Declared for its side effect: this is what tells `dx` to build and bundle
 /// the Kotlin module. The calls go through [`crate::android_bridge`] instead,
 /// because the macro's own bindings resolve classes against the calling
@@ -9,22 +10,32 @@ use serde::{Deserialize, Serialize};
 unsafe extern "Kotlin" {
     pub type GeolocationPlugin;
 }
+
 #[cfg(target_os = "android")]
 const GEOLOCATION_CLASS: &str = "dev.dioxus.g3_native_plugins.geolocation.GeolocationPlugin";
+
 #[cfg(target_os = "android")]
 type GeolocationHandle = crate::android_bridge::AndroidPlugin;
+
 #[cfg(target_os = "ios")]
 type GeolocationHandle = GeolocationPlugin;
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type GeolocationPlugin;
+
     pub fn startPositionRequestFromRust(this: &GeolocationPlugin, optionsJson: String);
+
     pub fn getLocationStateFromRust(this: &GeolocationPlugin) -> Option<String>;
+
     pub fn takePositionFromRust(this: &GeolocationPlugin) -> Option<String>;
+
     pub fn checkPermissionsFromRust(this: &GeolocationPlugin) -> Option<String>;
+
     pub fn requestPermissionsFromRust(this: &GeolocationPlugin);
 }
+
 /// Location permission, split by precision.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +49,7 @@ pub struct PermissionStatus {
     /// the grant this way.
     pub coarse_location: PermissionState,
 }
+
 /// How hard to work for a fix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,6 +63,7 @@ pub struct PositionOptions {
     /// immediately. Zero forces a fresh reading.
     pub maximum_age: u32,
 }
+
 impl Default for PositionOptions {
     fn default() -> Self {
         Self {
@@ -60,6 +73,7 @@ impl Default for PositionOptions {
         }
     }
 }
+
 /// Where the device is, in the shape the web Geolocation API uses.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,6 +95,7 @@ pub struct Coordinates {
     /// available.
     pub heading: Option<f64>,
 }
+
 /// A fix, and when it was taken.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +105,7 @@ pub struct Position {
     /// The coordinates themselves.
     pub coords: Coordinates,
 }
+
 /// What the plugin is currently doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LocationState {
@@ -100,6 +116,7 @@ pub enum LocationState {
     /// `Geolocation::poll_position`.
     Locating,
 }
+
 /// The device's location.
 ///
 /// Getting a fix is asynchronous everywhere and can take seconds, so this
@@ -134,18 +151,22 @@ pub enum LocationState {
 pub struct Geolocation {
     plugin: Option<GeolocationHandle>,
 }
+
 /// The inert location facade: see the native [`Geolocation`] for the contract.
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 pub struct Geolocation;
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl Geolocation {
     pub(crate) fn new() -> Self {
         Self { plugin: None }
     }
+
     fn get_plugin(&mut self) -> Result<&GeolocationHandle, String> {
         if self.plugin.is_none() {
             #[cfg(target_os = "android")]
             let created = GeolocationHandle::new(GEOLOCATION_CLASS)?;
+
             #[cfg(target_os = "ios")]
             let created = GeolocationPlugin::new()
                 .map_err(|error| format!("Failed to create GeolocationPlugin: {error:?}"))?;
@@ -153,11 +174,13 @@ impl Geolocation {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Construct the native plugin without asking for anything yet.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
     }
+
     /// Whether the app may read location right now.
     ///
     /// Cheap on both platforms, so this is the thing to poll after
@@ -165,8 +188,10 @@ impl Geolocation {
     /// waiting on a callback.
     pub fn check_permissions(&mut self) -> Result<PermissionStatus, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let reported = plugin.call_string("checkPermissionsFromRust")?;
+
         #[cfg(target_os = "ios")]
         let reported = checkPermissionsFromRust(plugin)?;
         let json =
@@ -174,6 +199,7 @@ impl Geolocation {
         serde_json::from_str(&json)
             .map_err(|error| format!("Failed to read permission status: {error}"))
     }
+
     /// Show the system permission prompt.
     ///
     /// Returns as soon as the prompt is raised; the answer arrives through
@@ -182,12 +208,15 @@ impl Geolocation {
     /// until the user changes it in Settings.
     pub fn request_permissions(&mut self) -> Result<(), String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit("requestPermissionsFromRust")?;
+
         #[cfg(target_os = "ios")]
         requestPermissionsFromRust(plugin)?;
         Ok(())
     }
+
     /// Start looking for a fix.
     ///
     /// A cached fix no older than
@@ -198,22 +227,27 @@ impl Geolocation {
         let options = serde_json::to_string(&options)
             .map_err(|error| format!("Failed to encode position options: {error}"))?;
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         plugin.call_unit_str("startPositionRequestFromRust", &options)?;
+
         #[cfg(target_os = "ios")]
         startPositionRequestFromRust(plugin, options)?;
         Ok(())
     }
+
     /// Whether a request is still in flight.
     pub fn location_state(&mut self) -> LocationState {
         let Ok(plugin) = self.get_plugin() else {
             return LocationState::Idle;
         };
+
         #[cfg(target_os = "android")]
         let state = plugin
             .call_string("getLocationStateFromRust")
             .ok()
             .flatten();
+
         #[cfg(target_os = "ios")]
         let state = getLocationStateFromRust(plugin).ok().flatten();
         match state.as_deref() {
@@ -221,6 +255,7 @@ impl Geolocation {
             _ => LocationState::Idle,
         }
     }
+
     /// Take the fix once it arrives.
     ///
     /// `Ok(None)` while the request is still running or when nothing was asked
@@ -229,8 +264,10 @@ impl Geolocation {
     /// request surfaces as `Err`, and also clears.
     pub fn poll_position(&mut self) -> Result<Option<Position>, String> {
         let plugin = self.get_plugin()?;
+
         #[cfg(target_os = "android")]
         let taken = plugin.call_string("takePositionFromRust")?;
+
         #[cfg(target_os = "ios")]
         let taken = takePositionFromRust(plugin)?;
         let Some(json) = taken else {
@@ -246,31 +283,38 @@ impl Geolocation {
         Ok(Some(position))
     }
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl Geolocation {
     pub(crate) fn new() -> Self {
         Self
     }
+
     /// No-op: nothing native to construct on these targets.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Always [`PermissionState::Prompt`]: nothing here grants location.
     pub fn check_permissions(&mut self) -> Result<PermissionStatus, String> {
         Ok(PermissionStatus::default())
     }
+
     /// No-op: use the browser's own Geolocation API on the web.
     pub fn request_permissions(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// No-op: no request is ever started on these targets.
     pub fn start_position_request(&mut self, _options: PositionOptions) -> Result<(), String> {
         Ok(())
     }
+
     /// Always [`LocationState::Idle`].
     pub fn location_state(&mut self) -> LocationState {
         LocationState::Idle
     }
+
     /// Always `None`: nothing on these targets produces a fix.
     pub fn poll_position(&mut self) -> Result<Option<Position>, String> {
         Ok(None)

@@ -7,9 +7,11 @@ setup:
     lefthook install
 
 format:
+    cargo fmt --manifest-path testbed/Cargo.toml
     cargo fmt --all
 
 format-check:
+    cargo fmt --manifest-path testbed/Cargo.toml -- --check
     cargo fmt --all -- --check
 
 check:
@@ -48,3 +50,17 @@ ci: quality security package-check
 
 package:
     cargo package
+
+# Readability rules inside RSX, checked without rewriting source.
+style-check:
+    python scripts/rust_style.py
+
+style-report:
+    python scripts/rust_style.py --report
+
+style-test:
+    python scripts/test_rust_style.py
+
+# The native-only testbed must be checked on a supported platform target.
+lint-testbed-android:
+    cargo clippy --manifest-path testbed/Cargo.toml --target aarch64-linux-android --all-targets --no-deps -- -D warnings

@@ -3,15 +3,20 @@
 unsafe extern "Kotlin" {
     pub type BackButtonPlugin;
 }
+
 #[cfg(target_os = "ios")]
 #[manganis::ffi("src/ios")]
 unsafe extern "Swift" {
     pub type BackButtonPlugin;
+
     pub fn setInterceptingFromRust(this: &BackButtonPlugin, intercepting: bool);
+
     pub fn fallThroughFromRust(this: &BackButtonPlugin);
 }
+
 #[cfg(target_os = "android")]
 const BACK_BUTTON_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.back_button.BackButtonPlugin";
+
 /// DOM event dispatched on `window` for an intercepted system-back request.
 ///
 /// The event is cancelable so higher-priority UI such as a dialog or sheet can
@@ -19,6 +24,7 @@ const BACK_BUTTON_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.back_button
 /// it. [`g3-route-transitions`](https://docs.rs/g3-route-transitions) uses this
 /// contract for its optional native-back integration.
 pub const NATIVE_BACK_EVENT: &str = "g3nativeback";
+
 /// The system back gesture, routed into the app's own history.
 ///
 /// "Back" here is the event, not the button that produced it. Android raises it
@@ -51,17 +57,20 @@ pub struct BackButton {
     plugin: Option<crate::android_bridge::AndroidPlugin>,
     intercepting: bool,
 }
+
 #[cfg(target_os = "ios")]
 /// The iOS left-edge back-swipe bridge.
 pub struct BackButton {
     plugin: Option<BackButtonPlugin>,
     intercepting: bool,
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 /// An inert back-button facade for targets without a native back gesture.
 pub struct BackButton {
     intercepting: bool,
 }
+
 #[cfg(target_os = "android")]
 impl BackButton {
     /// Create an unprepared, non-intercepting system-back plugin.
@@ -75,6 +84,7 @@ impl BackButton {
             intercepting: false,
         }
     }
+
     fn get_plugin(&mut self) -> Result<&crate::android_bridge::AndroidPlugin, String> {
         if self.plugin.is_none() {
             self.plugin = Some(crate::android_bridge::AndroidPlugin::new(
@@ -83,11 +93,13 @@ impl BackButton {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Initializes the Android bridge without enabling interception.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
     }
+
     /// Whether the system back press is taken by the app.
     ///
     /// Call with `false` wherever back should leave the app, so the press keeps
@@ -104,6 +116,7 @@ impl BackButton {
         self.intercepting = intercepting;
         Ok(())
     }
+
     /// Pass one intercepted press to the next Android Back handler.
     ///
     /// Integration crates use this as a race-safe fallback when a callback was
@@ -115,11 +128,13 @@ impl BackButton {
             .call_unit("fallThroughFromRust")
             .map_err(|error| format!("Failed to pass Back to Android: {error}"))
     }
+
     /// Returns whether system-back interception is enabled.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
     }
 }
+
 #[cfg(target_os = "ios")]
 impl BackButton {
     /// Create an unprepared, non-intercepting system-back plugin.
@@ -133,6 +148,7 @@ impl BackButton {
             intercepting: false,
         }
     }
+
     fn get_plugin(&mut self) -> Result<&BackButtonPlugin, String> {
         if self.plugin.is_none() {
             self.plugin = Some(
@@ -142,11 +158,13 @@ impl BackButton {
         }
         Ok(self.plugin.as_ref().unwrap())
     }
+
     /// Initializes the iOS gesture bridge without enabling interception.
     pub fn prepare(&mut self) -> Result<(), String> {
         self.get_plugin()?;
         Ok(())
     }
+
     /// Whether the left-edge back swipe is taken by the app.
     ///
     /// Call with `false` wherever back should mean nothing, so an edge swipe at
@@ -161,6 +179,7 @@ impl BackButton {
         self.intercepting = intercepting;
         Ok(())
     }
+
     /// Pass one intercepted gesture back to the platform.
     ///
     /// Android's counterpart hands the press to the next Back handler, which
@@ -172,11 +191,13 @@ impl BackButton {
         fallThroughFromRust(plugin)?;
         Ok(())
     }
+
     /// Returns whether left-edge swipe interception is enabled.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
     }
 }
+
 #[cfg(any(target_arch = "wasm32", target_os = "macos"))]
 impl BackButton {
     /// Create the inert system-back facade used where nothing raises the event.
@@ -185,25 +206,30 @@ impl BackButton {
             intercepting: false,
         }
     }
+
     /// No-op preparation for targets without a native back gesture.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Recorded but inert: the browser owns back on the web, and macOS has no
     /// system back gesture to take.
     pub fn set_intercepting(&mut self, intercepting: bool) -> Result<(), String> {
         self.intercepting = intercepting;
         Ok(())
     }
+
     /// No-op counterpart to Android's one-press fallthrough.
     pub fn fall_through(&mut self) -> Result<(), String> {
         Ok(())
     }
+
     /// Returns the requested interception state.
     pub fn is_intercepting(&self) -> bool {
         self.intercepting
     }
 }
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",

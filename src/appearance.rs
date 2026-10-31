@@ -21,6 +21,7 @@
 unsafe extern "Kotlin" {
     pub type AppearancePlugin;
 }
+
 #[cfg(target_os = "android")]
 const APPEARANCE_CLASS: &str = "dev.dioxus.g3_native_plugins.appearance.AppearancePlugin";
 
@@ -49,6 +50,7 @@ impl SystemAppearance {
             let answer = self.plugin()?.call_string("isDarkFromRust").ok()??;
             Some(answer == "true")
         }
+
         #[cfg(not(target_os = "android"))]
         None
     }
@@ -71,6 +73,7 @@ impl SystemAppearance {
                 .ok_or_else(|| "The appearance plugin is unavailable".to_string())?;
             plugin.keep_unit_bool("setDarkBarIconsFromRust", dark)
         }
+
         #[cfg(not(target_os = "android"))]
         {
             let _ = dark;
