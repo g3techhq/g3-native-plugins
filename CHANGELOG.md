@@ -17,6 +17,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   since the fork's `ndk_context` holds the Application. Back button and media
   now share the other plugins' bridge.
 
+- Android: `media.set_orientation` with anything but `portrait` or
+  `landscape` returns to the app's own orientation (its manifest's on a phone,
+  free on a tablet) instead of unlocking it. An app that keeps phones in
+  portrait no longer turns sideways after leaving a landscape video.
+
 ### Added
 
 - Storage: `remove_durable` waits for native encrypted deletion, including Android

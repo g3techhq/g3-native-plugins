@@ -78,7 +78,9 @@ impl Media {
             .map_err(|error| format!("Failed to enter picture-in-picture: {error}"))
     }
 
-    /// Requests a device orientation such as `portrait` or `landscape`.
+    /// Requests a device orientation such as `portrait` or `landscape`. Anything
+    /// else, such as `unspecified`, returns to the app's own: on Android, its
+    /// manifest's lock on a phone and free rotation on a tablet.
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
         let orientation = orientation.into();
         self.get_plugin()?
@@ -153,7 +155,9 @@ impl Media {
         Ok(())
     }
 
-    /// Requests a device orientation such as `portrait` or `landscape`.
+    /// Requests a device orientation such as `portrait` or `landscape`. Anything
+    /// else, such as `unspecified`, returns to the app's own: on Android, its
+    /// manifest's lock on a phone and free rotation on a tablet.
     pub fn set_orientation(&mut self, orientation: impl Into<String>) -> Result<(), String> {
         let plugin = self.get_plugin()?;
         setOrientationFromRust(plugin, orientation.into())?;

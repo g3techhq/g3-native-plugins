@@ -681,12 +681,28 @@ class MediaPlugin(private val activity: Activity) {
         }
     }
 
+    /// What the app asks for when nothing else does: its manifest's
+    /// orientation, such as an app that keeps phones in portrait, except on a
+    /// screen 600dp or wider, where dx's MainActivity lets it rotate. A plain
+    /// "unspecified" here turned a portrait-only phone app sideways after
+    /// leaving a landscape video.
+    private fun appOrientation(): Int {
+        if (activity.resources.configuration.smallestScreenWidthDp >= 600) {
+            return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        return try {
+            activity.packageManager.getActivityInfo(activity.componentName, 0).screenOrientation
+        } catch (error: Exception) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
     fun setOrientationFromRust(orientation: String) {
         activity.runOnUiThread {
             activity.requestedOrientation = when (orientation) {
                 "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                else -> appOrientation()
             }
             // Turning the window re-delivers the insets with the bars back on,
             // which left the status bar over a wide video that had hidden it
