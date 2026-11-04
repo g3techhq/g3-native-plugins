@@ -73,6 +73,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   per-plugin Swift products (`ClipboardPlugin`...) are now empty static
   libraries that only `dx` asks for; outside `dx`, build `G3NativePlugins`.
 
+- iOS: in-app purchases guard their state with `NSLock.withLock`, which
+  Swift 6 allows in the async tasks that `lock()` and `unlock()` are refused
+  in, and the plugin compiles clean in Swift 6 language mode. The package's
+  iOS minimum stays 15.
+
 - Android: a plugin built for an Activity that Android has since recreated is
   rebuilt for the new one, and what was set up on the old one (deep-link,
   notification and push listeners, Back interception, media session, safe-area

@@ -20,8 +20,11 @@ import StoreKit
  * own server to check against Apple; the rest of an entitlement is display
  * state read off the device.
  */
+// Sendable because every stored property is read and written only under
+// `lock` (with `withLock`, which unlike `lock()`/`unlock()` may be called from
+// the async tasks below in Swift 6).
 @objc(InAppPurchasesPlugin)
-public class InAppPurchasesPlugin: NSObject {
+public class InAppPurchasesPlugin: NSObject, @unchecked Sendable {
 
     private static let stateIdle = "idle"
     private static let statePurchasing = "purchasing"
@@ -40,9 +43,7 @@ public class InAppPurchasesPlugin: NSObject {
 
     @objc
     public func prepareFromRust() {
-        lock.lock()
-        let alreadyListening = updatesTask != nil
-        lock.unlock()
+        let alreadyListening = lock.withLock { updatesTask != nil }
         if alreadyListening { return }
 
         let task = Task.detached { [weak self] in
@@ -57,9 +58,7 @@ public class InAppPurchasesPlugin: NSObject {
                 }
             }
         }
-        lock.lock()
-        updatesTask = task
-        lock.unlock()
+        lock.withLock { updatesTask = task }
 
         Task { await publishEntitlements() }
     }
@@ -80,9 +79,9 @@ public class InAppPurchasesPlugin: NSObject {
             }
             do {
                 let fetched = try await Product.products(for: ids)
-                lock.lock()
-                for product in fetched { loaded[product.id] = product }
-                lock.unlock()
+                lock.withLock {
+                    for product in fetched { loaded[product.id] = product }
+                }
                 let encoded = fetched.map { StoreCatalogue.product($0) }
                 publish(
                     StoreCatalogue.json(encoded) ?? "[]",
@@ -104,7 +103,7 @@ public class InAppPurchasesPlugin: NSObject {
         guard let data = payloadJson.data(using: .utf8),
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let productId = payload["productId"] as? String,
-              let offerId = payload["offerId"] as? String else {
+              payload["offerId"] is String else {
             publishPurchaseError("The purchase request could not be decoded.")
             return
         }
@@ -159,14 +158,10 @@ public class InAppPurchasesPlugin: NSObject {
     }
 
     private func product(for id: String) async -> Product? {
-        lock.lock()
-        let cached = loaded[id]
-        lock.unlock()
+        let cached = lock.withLock { loaded[id] }
         if let cached = cached { return cached }
         guard let fetched = try? await Product.products(for: [id]).first else { return nil }
-        lock.lock()
-        loaded[id] = fetched
-        lock.unlock()
+        lock.withLock { loaded[id] = fetched }
         return fetched
     }
 
@@ -247,7 +242,7 @@ public class InAppPurchasesPlugin: NSObject {
         guard let data = payloadJson.data(using: .utf8),
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let transactionId = payload["transactionId"] as? String,
-              let consume = payload["consume"] as? Bool else {
+              payload["consume"] is Bool else {
             publishPurchaseError("The finish request could not be decoded.")
             return
         }
@@ -268,38 +263,36 @@ public class InAppPurchasesPlugin: NSObject {
 
     @objc
     public func takeProductsFromRust() -> String? {
-        lock.lock()
-        defer { lock.unlock() }
-        let taken = products
-        products = nil
-        return taken
+        lock.withLock {
+            let taken = products
+            products = nil
+            return taken
+        }
     }
 
     @objc
     public func takeEntitlementsFromRust() -> String? {
-        lock.lock()
-        defer { lock.unlock() }
-        let taken = entitlements
-        entitlements = nil
-        return taken
+        lock.withLock {
+            let taken = entitlements
+            entitlements = nil
+            return taken
+        }
     }
 
     @objc
     public func getPurchaseStateFromRust() -> String {
-        lock.lock()
-        defer { lock.unlock() }
-        return purchasing ? Self.statePurchasing : Self.stateIdle
+        lock.withLock { purchasing ? Self.statePurchasing : Self.stateIdle }
     }
 
     // MARK: - Internals
 
     private func publish(_ json: String, isProducts: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        if isProducts {
-            products = json
-        } else {
-            entitlements = json
+        lock.withLock {
+            if isProducts {
+                products = json
+            } else {
+                entitlements = json
+            }
         }
     }
 
@@ -309,8 +302,6 @@ public class InAppPurchasesPlugin: NSObject {
     }
 
     private func setPurchasing(_ value: Bool) {
-        lock.lock()
-        purchasing = value
-        lock.unlock()
+        lock.withLock { purchasing = value }
     }
 }
