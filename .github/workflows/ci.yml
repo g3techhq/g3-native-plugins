@@ -55,22 +55,46 @@ jobs:
 
   apple:
     name: Apple facade and packaged testbed
-    runs-on: macos-14
+    # The apps build their store bundles with Xcode 26 (App Store Connect
+    # refuses older SDKs), so the Swift here is checked with the same one.
+    runs-on: macos-26
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Require Xcode 26 or newer
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          major="$(xcodebuild -version | awk 'NR == 1 { split($2, v, "."); print v[1] }')"
+          [[ "$major" -ge 26 ]] || {
+            echo "The apps ship with Xcode 26 or newer; this runner selects Xcode $major" >&2
+            exit 1
+          }
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.95.0
-          targets: aarch64-apple-ios-sim
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim
           components: clippy
       - name: Check macOS target
         run: cargo check --all-features
       - name: Check iOS Simulator target
         run: cargo check --target aarch64-apple-ios-sim --all-features
+      - name: Lint the iOS target
+        # The Swift bindings are compiled only for iOS, so no other job lints
+        # them. Same as `just check-ios`.
+        run: |
+          cargo clippy --target aarch64-apple-ios --all-features --no-deps -- -D warnings
+          cargo clippy --target aarch64-apple-ios --no-deps --features "appearance back-button clipboard external-url media storage" -- -D warnings
+      - name: Swift framework holds only the enabled plugins
+        # ITMS-90683: a framework referencing a permission API the app does not
+        # use is rejected. Builds the package as dx does for two feature sets.
+        run: |
+          scripts/check-swift-subset.sh
+          scripts/check-swift-subset.sh Auth InAppPurchases PushNotifications Storage
       - name: Lint iOS Simulator testbed
         run: cargo clippy --manifest-path testbed/Cargo.toml --target aarch64-apple-ios-sim --all-targets --no-deps -- -D warnings
       - name: Install Dioxus CLI

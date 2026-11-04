@@ -61,6 +61,12 @@ style-report:
 style-test:
     node --test scripts/rust-style.test.mjs
 
+# The Swift bindings, which only an iOS build compiles (needs macOS).
+check-ios:
+    cargo clippy --target aarch64-apple-ios --all-features --no-deps -- -D warnings
+    cargo clippy --target aarch64-apple-ios --no-deps --features "appearance back-button clipboard external-url media storage" -- -D warnings
+    scripts/check-swift-subset.sh
+
 # The native-only testbed must be checked on a supported platform target.
 lint-testbed-android:
     cargo clippy --manifest-path testbed/Cargo.toml --target aarch64-linux-android --all-targets --no-deps -- -D warnings
