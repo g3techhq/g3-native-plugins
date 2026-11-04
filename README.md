@@ -78,6 +78,25 @@ g3-native-plugins = { git = "https://github.com/g3techhq/g3-native-plugins", bra
 Build it with the fork's CLI, since `dx` and the Dioxus crates must match:
 `cargo install --git https://github.com/Gateway3B/dioxus --branch main dioxus-cli --locked`.
 
+### iOS privacy manifest
+
+The Swift package ships no `PrivacyInfo.xcprivacy`, because its sources call no
+required-reason API: no `UserDefaults`, file-timestamp, boot-time or disk-space
+API. The app's own manifest covers what it links. Two things to put there:
+
+- **File timestamps.** Rust's `std::fs` calls `stat`, one of Apple's
+  file-timestamp APIs, whenever a file's metadata is read; `updater` does that
+  for the bundles it keeps. Declare `NSPrivacyAccessedAPICategoryFileTimestamp`
+  with reason `C617.1` (files inside the app's own container).
+- **Collected data.** What an enabled plugin hands the app, for the manifest's
+  `NSPrivacyCollectedDataTypes` and the App Store privacy label, if the app
+  sends it to its server: precise location (`geolocation`), purchase history
+  (`in-app-purchases`), user ID and email (`auth`, from Apple's identity
+  token), and a device ID (`push-notifications`, the APNs token).
+
+The usage-description strings come from `Dioxus.toml`'s `[permissions]`; see
+the camera, microphone and geolocation sections.
+
 ## Provide Plugins
 
 Create the provider once near your app root. The provider lazily constructs each native plugin the first time it is used.
@@ -390,8 +409,12 @@ Play Billing is a real `implementation` dependency, unlike the `compileOnly`
 androidx ones elsewhere here: the host app already carries androidx but has no
 reason to carry billing, and unlike the location case there is no alternative
 to weigh — Play billing is only reachable through that library. It is pinned to
-7.1.1, the floor Google currently requires; check the deadline before shipping,
-because they move it.
+8.2.1 (Google requires 8 or later for apps updated after 2026-08-31); check the
+deadline before shipping, because they move it.
+
+On iOS a consumable is never among StoreKit's current entitlements, so an
+unfinished one is added to the batch with `needs_finishing` set, and leaves it
+once finished — the same as an unconsumed purchase on Play.
 
 ## Geolocation
 
