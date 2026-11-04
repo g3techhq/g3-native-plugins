@@ -522,6 +522,8 @@ impl InAppPurchases {
         #[cfg(target_os = "android")]
         self.get_plugin()?
             .call_unit_str("launchExternalContentLinkFromRust", url)?;
+        #[cfg(target_os = "ios")]
+        let _ = url;
         Ok(())
     }
 

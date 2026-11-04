@@ -270,7 +270,12 @@ impl KeyValueStore {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(
+    target_arch = "wasm32",
+    target_os = "android",
+    target_os = "ios",
+    target_os = "macos"
+))]
 impl Default for KeyValueStore {
     fn default() -> Self {
         Self::new()
