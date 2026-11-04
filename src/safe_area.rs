@@ -8,7 +8,8 @@
 //! the insets from the window and publishes them as `--g3-safe-area-top`,
 //! `-right`, `-bottom` and `-left` on the root element, which g3-ui prefers
 //! over `env()`. iOS's WKWebView and browsers already report `env()`
-//! correctly, so there this is inert.
+//! correctly, so there this is inert and the variables stay unset: read them
+//! as `var(--g3-safe-area-top, env(safe-area-inset-top))`.
 //!
 //! [`NativePluginsProvider`](crate::NativePluginsProvider) starts it, so an
 //! app enabling the feature needs no code.

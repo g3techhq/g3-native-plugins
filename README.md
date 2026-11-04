@@ -27,7 +27,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `back-button` | yes | iOS only | no | The back *event*, whatever raises it: Android's system back, an iOS left-edge swipe. |
 | `deep-links` | yes | iOS only | n/a | Receives the URL a universal link, App Link, or custom scheme opened the app with. |
 | `in-app-purchases` | yes | iOS only | n/a | Products, purchases, subscriptions, and restore. Play Billing and StoreKit 2. |
-| `safe-area` | yes | not needed | not needed | The status bar, cutout and gesture-bar insets of an edge-to-edge page, as CSS variables g3-ui reads; and hiding the system bars. Started by the provider. |
+| `safe-area` | yes | inert: use `env()` | inert: use `env()` | The status bar, cutout and gesture-bar insets of an edge-to-edge page, as CSS variables g3-ui reads; and hiding the system bars. Started by the provider. The variables are set only on Android; iOS and browsers leave them unset and report `env(safe-area-inset-*)` correctly. |
 | `storage` | yes | iOS only | yes\* | Key-value storage. Keystore AES-GCM / Keychain. \*Web is `localStorage` and **not** encrypted. |
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
 | `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
@@ -211,7 +211,15 @@ insets from the window and keeps `--g3-safe-area-top`, `-right`, `-bottom`
 and `-left` up to date on the root element, in CSS pixels. g3-ui uses those
 ahead of `env()`, so its header, tab bar, sheets and toasts clear the bars
 with no code in the app. iOS and browsers report `env()` correctly already,
-so the feature is inert there.
+so the feature is inert there: **the `--g3-safe-area-*` variables are never
+set on iOS or the web**, and `set_bars_hidden` does nothing. Read them with
+`env()` as the fallback, as g3-ui does, so one rule works everywhere:
+
+```css
+.my-footer {
+  padding-bottom: var(--g3-safe-area-bottom, env(safe-area-inset-bottom, 0px));
+}
+```
 
 Hidden bars report no inset, so hiding them gives the page the whole screen:
 

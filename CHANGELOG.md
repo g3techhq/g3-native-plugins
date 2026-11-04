@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Safe area: the README and matrix say plainly that the `--g3-safe-area-*`
+  variables are set only on Android; iOS and the web leave them unset and
+  report `env(safe-area-inset-*)`, so CSS reads them with `env()` as the
+  fallback.
+
 - **Breaking:** builds against Dioxus `=0.8.0-alpha.3` from the Gateway3B fork
   (upstream `main` plus the g3 commits) instead of 0.7.9. Apps patch `dioxus`,
   `dioxus-signals` and `manganis` to the fork and build with its `dx`; see the
