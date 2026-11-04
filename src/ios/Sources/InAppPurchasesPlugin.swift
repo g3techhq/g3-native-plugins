@@ -184,15 +184,21 @@ public class InAppPurchasesPlugin: NSObject {
 
     private func publishEntitlements() async {
         var unfinished = Set<UInt64>()
+        var unfinishedConsumables: [(Transaction, String)] = []
         for await result in Transaction.unfinished {
             if case .verified(let transaction) = result {
                 unfinished.insert(transaction.id)
+                if transaction.productType == .consumable {
+                    unfinishedConsumables.append((transaction, result.jwsRepresentation))
+                }
             }
         }
 
         var encoded: [[String: Any]] = []
+        var included = Set<UInt64>()
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
+            included.insert(transaction.id)
             var willAutoRenew = false
             if transaction.productType == .autoRenewable {
                 willAutoRenew = await autoRenews(transaction.productID)
@@ -206,6 +212,19 @@ public class InAppPurchasesPlugin: NSObject {
                 )
             )
         }
+        // A consumable is never a current entitlement, so without this a
+        // bought consumable would reach the app nowhere: never delivered and
+        // never finished. Play lists an unconsumed one the same way.
+        for (transaction, jws) in unfinishedConsumables where !included.contains(transaction.id) {
+            encoded.append(
+                StoreCatalogue.entitlement(
+                    transaction,
+                    jws: jws,
+                    needsFinishing: true,
+                    willAutoRenew: false
+                )
+            )
+        }
         publish(StoreCatalogue.json(encoded) ?? "[]", isProducts: false)
     }
 
@@ -215,7 +234,7 @@ public class InAppPurchasesPlugin: NSObject {
     private func autoRenews(_ productID: String) async -> Bool {
         guard let product = await product(for: productID),
               let statuses = try? await product.subscription?.status else { return false }
-        for status in statuses ?? [] {
+        for status in statuses {
             if case .verified(let renewal) = status.renewalInfo {
                 return renewal.willAutoRenew
             }

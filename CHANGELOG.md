@@ -85,6 +85,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sheet, so a caller checking `is_auth_awaiting` straight away read "idle" and
   took the sign-in as cancelled while the sheet was still opening.
 
+- iOS in-app purchases: an unfinished consumable is published with the
+  entitlements, with `needs_finishing` set. StoreKit never lists a consumable
+  among the current entitlements, so a bought consumable reached the app
+  nowhere and could be neither delivered nor finished. Play already listed an
+  unconsumed one.
+
 ## [0.4.5] - 2026-10-18
 
 ### Fixed
