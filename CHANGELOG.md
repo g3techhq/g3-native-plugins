@@ -43,6 +43,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `NativePlugins` context, for the account-deletion path. The README says why
   it matters on iOS, where Keychain items outlive the app.
 
+- Android: the storage plugin ships Auto Backup and data-extraction rules
+  that leave its encrypted preferences out of backups (a restored copy cannot
+  be decrypted without the Keystore key, which is never backed up). Apps point
+  `<application>` at them; see the README.
+
 - Storage: `remove_durable` waits for native encrypted deletion, including Android
   commit failure. Browser/macOS calls report an error. Privacy cleanup can verify
   removal without relying on Android's asynchronous `remove` behavior.

@@ -317,6 +317,29 @@ lock, which can invalidate the Keystore key. That surfaces as an error from
 `get()` rather than as a missing key, so the app can tell "signed out" from
 "something went wrong".
 
+### Leaving it out of Android backups
+
+Android's Auto Backup copies an app's preferences to the user's Google account
+and restores them on a new install, but never the Keystore key the values are
+encrypted with. A restored store therefore cannot be decrypted, and every
+`get()` fails. Exclude it: the plugin ships the rules as resources, and the app
+points its `<application>` at them, for example in the manifest that Dioxus.toml's
+`[android] manifest` merges:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:fullBackupContent="@xml/g3_native_plugins_backup_rules"
+        android:dataExtractionRules="@xml/g3_native_plugins_data_extraction_rules" />
+</manifest>
+```
+
+An app that has its own rules adds the same line to each of them instead:
+`<exclude domain="sharedpref" path="g3_native_plugins.storage.xml" />`
+(inside both `<cloud-backup>` and `<device-transfer>` in data-extraction
+rules). The library does not set the attributes itself, because only one
+set of rules can apply to an app and it would collide with the app's own.
+
 ## Camera and Microphone
 
 **Capture is ordinary web code.** Call `navigator.mediaDevices.getUserMedia`

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Auto Backup rules for Android 11 and earlier (android:fullBackupContent).
+
+The storage plugin's values are encrypted under a Keystore key, and Keystore
+keys are never backed up. A restored copy of the preferences cannot be
+decrypted on the new install, so it is left out of backups.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="g3_native_plugins.storage.xml" />
+</full-backup-content>
