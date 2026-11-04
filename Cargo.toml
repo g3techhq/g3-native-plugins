@@ -10,7 +10,7 @@ documentation = "https://docs.rs/g3-native-plugins"
 license = "MIT OR Apache-2.0"
 keywords = ["dioxus", "mobile", "plugins", "ios", "android"]
 categories = ["api-bindings", "gui", "wasm"]
-include = ["Cargo.toml", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "src/**"]
+include = ["Cargo.toml", "build.rs", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "src/**"]
 
 [lib]
 name = "g3_native_plugins"

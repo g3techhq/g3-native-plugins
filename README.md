@@ -38,6 +38,16 @@ The `deep_links` module's metadata builders are not feature-gated and build
 everywhere, including on the server. Only receiving a link needs the
 `deep-links` feature.
 
+On iOS only the enabled plugins' Swift is compiled into the app's
+`DioxusSwiftPlugins.framework`, so the binary references only the permission
+APIs of the features the app turned on, and App Store Connect asks only for
+their usage strings (ITMS-90683): `geolocation` needs a location description
+and `camera-microphone` camera and microphone ones (`[permissions]` in
+Dioxus.toml). The crate's `build.rs` names the Swift product after the enabled
+features and `src/ios/Package.swift` compiles only those sources; nothing is
+needed in the app. `scripts/check-swift-subset.sh` builds a feature set the
+way `dx` does and checks the framework.
+
 ## Install
 
 ### Installed app version

@@ -62,6 +62,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- iOS: an app's `DioxusSwiftPlugins.framework` holds only the Swift of the
+  plugins it enabled. All of it was one Swift target, so every app shipped the
+  location, camera and microphone permission, notification, Sign in with Apple
+  and StoreKit calls whatever its features, and App Store Connect rejects a
+  binary that references a permission API without its usage string
+  (ITMS-90683). `build.rs` now names the Swift product after the enabled
+  features, and `src/ios/Package.swift` compiles and links only those. Nothing
+  changes in apps; `scripts/check-swift-subset.sh` checks a feature set. The
+  per-plugin Swift products (`ClipboardPlugin`...) are now empty static
+  libraries that only `dx` asks for; outside `dx`, build `G3NativePlugins`.
+
 - Android: a plugin built for an Activity that Android has since recreated is
   rebuilt for the new one, and what was set up on the old one (deep-link,
   notification and push listeners, Back interception, media session, safe-area

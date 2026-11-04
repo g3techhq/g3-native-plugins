@@ -15,6 +15,14 @@
     reason = "Dioxus components and native FFI methods keep their framework names."
 )]
 #![warn(missing_docs)]
+
+// The Swift product that holds exactly the enabled plugins, which is the one
+// `dx` installs as the app's Swift framework. See `build.rs`.
+#[cfg(target_os = "ios")]
+mod swift_product {
+    include!(concat!(env!("OUT_DIR"), "/swift_product.rs"));
+}
+
 #[cfg(all(
     target_os = "android",
     any(
@@ -838,27 +846,23 @@ mod tests {
         let clipboard = include_str!("clipboard.rs");
         let external_url = include_str!("external_url.rs");
         assert!(manifest.contains("name: \"DioxusNativePlugins\""));
-        assert!(manifest.contains(".library(name: \"AuthPlugin\""));
-        assert!(manifest.contains(".library(name: \"BackButtonPlugin\""));
-        assert!(manifest.contains(".library(name: \"CameraMicrophonePlugin\""));
-        assert!(manifest.contains(".library(name: \"ClipboardPlugin\""));
-        assert!(manifest.contains(".library(name: \"DeepLinksPlugin\""));
-        assert!(manifest.contains(".library(name: \"ExternalUrlPlugin\""));
-        assert!(manifest.contains(".library(name: \"GeolocationPlugin\""));
-        assert!(manifest.contains(".library(name: \"InAppPurchasesPlugin\""));
-        assert!(manifest.contains(".linkedFramework(\"StoreKit\")"));
-        assert!(manifest.contains(".linkedFramework(\"CoreLocation\")"));
-        assert!(manifest.contains(".library(name: \"MediaPlugin\""));
-        assert!(manifest.contains(".library(name: \"StoragePlugin\""));
-        assert!(manifest.contains(".library(name: \"NotificationsPlugin\""));
-        assert!(manifest.contains(".library(name: \"PushNotificationsPlugin\""));
-        assert!(manifest.contains(".library(name: \"UpdaterPlugin\""));
-        assert!(manifest.contains(".linkedFramework(\"UserNotifications\")"));
-        assert!(manifest.contains(".linkedFramework(\"Security\")"));
-        assert!(manifest.contains(".linkedFramework(\"AuthenticationServices\")"));
-        assert!(manifest.contains(".linkedFramework(\"AVFoundation\")"));
-        assert!(manifest.contains(".linkedFramework(\"MediaPlayer\""));
-        assert!(manifest.contains(".linkedFramework(\"WebKit\")"));
+        // A product for each plugin's block, named after its Swift type.
+        assert!(manifest.contains("Product.library(name: \"\\(plugin.token)Plugin\""));
+        for framework in [
+            "AuthenticationServices",
+            "AVFoundation",
+            "CoreLocation",
+            "MediaPlayer",
+            "Security",
+            "StoreKit",
+            "UserNotifications",
+            "WebKit",
+        ] {
+            assert!(
+                manifest.contains(&format!("\"{framework}\"")),
+                "{framework}"
+            );
+        }
         assert!(auth.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(
             auth.contains("pub fn startAppleAuthFromRust(this: &AuthPlugin, requestJson: String) -> Option<String>;",),
@@ -875,6 +879,87 @@ mod tests {
         assert!(!swift_auth.contains("Display name:"));
         assert!(clipboard.contains("#[manganis::ffi(\"src/ios\")]"));
         assert!(external_url.contains("#[manganis::ffi(\"src/ios\")]"));
+    }
+
+    /// The Swift product is named in `build.rs` and parsed back in
+    /// `Package.swift`; both must list the same plugins in the same order, with
+    /// the same sources, or an app's framework misses a plugin (or the
+    /// manifest stops the build).
+    #[test]
+    fn swift_product_tokens_match_between_build_script_and_manifest() {
+        let build = include_str!("../build.rs");
+        let manifest = include_str!("ios/Package.swift");
+
+        let build_tokens: Vec<&str> = build
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("(\""))
+            .map(|line| line.split('"').nth(2).expect("a (feature, token) pair"))
+            .collect();
+        let manifest_tokens: Vec<&str> = manifest
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("Plugin(token: \""))
+            .map(|line| line.split('"').next().expect("a quoted token"))
+            .collect();
+        assert_eq!(build_tokens.len(), 14);
+        assert_eq!(build_tokens, manifest_tokens);
+
+        // Every Swift file belongs to exactly one plugin.
+        for swift in [
+            "AppInfoPlugin.swift",
+            "AuthPlugin.swift",
+            "BackButtonPlugin.swift",
+            "CameraMicrophonePlugin.swift",
+            "ClipboardPlugin.swift",
+            "DeepLinksPlugin.swift",
+            "ExternalUrlPlugin.swift",
+            "GeolocationPlugin.swift",
+            "InAppPurchasesPlugin.swift",
+            "MediaPlugin.swift",
+            "NotificationCenterRelay.swift",
+            "NotificationsPlugin.swift",
+            "PushNotificationsPlugin.swift",
+            "StoragePlugin.swift",
+            "StoreCatalogue.swift",
+            "UpdaterPlugin.swift",
+        ] {
+            assert_eq!(
+                manifest.matches(&format!("\"{swift}\"")).count(),
+                1,
+                "{swift}"
+            );
+        }
+        let on_disk = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src/ios/Sources"))
+            .expect("the Swift sources exist")
+            .filter(|entry| {
+                entry
+                    .as_ref()
+                    .is_ok_and(|entry| entry.path().extension().is_some_and(|ext| ext == "swift"))
+            })
+            .count();
+        assert_eq!(
+            on_disk, 16,
+            "a new Swift file needs a plugin in Package.swift"
+        );
+
+        // dx installs the first dynamic library it builds. Only the product
+        // build.rs names may be one: each plugin's own block asks for a
+        // product named after its type, which must stay static and empty.
+        assert!(build.contains("pub type {product};\n}}"));
+        assert!(manifest.contains(".library(name: product, type: .dynamic"));
+        assert!(manifest.contains("let staticLibrary: Product.Library.LibraryType = .static"));
+        assert!(manifest.contains("type: staticLibrary, targets: [\"PluginBinding\"]"));
+        // dx's rewrite is textual; the only `type: .static` left is a comment.
+        assert_eq!(manifest.matches("type: .static").count(), 1);
+        assert!(
+            manifest
+                .contains("// Spelled through a constant: `dx` rewrites the text `type: .static`")
+        );
+        let binding = include_str!("ios/PluginBinding/PluginBinding.swift");
+        assert!(
+            binding
+                .lines()
+                .all(|line| line.is_empty() || line.starts_with("//"))
+        );
     }
 
     #[test]
