@@ -21,7 +21,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly, and the system-bar icon color for an edge-to-edge page. Elsewhere `None` and inert: the page's own media query is right. |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
 | `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
-| `auth` | yes | iOS only | no | Google Sign-In on Android, Sign in with Apple on iOS. macOS is inert. |
+| `auth` | yes | iOS only | no | Google Sign-In on Android (optionally bound to a server nonce), Sign in with Apple on iOS. The Google calls are Android-only: `start_google_auth_with_nonce` is inert on iOS and macOS, which have no native Google flow. macOS is inert. |
 | `external-url` | yes | iOS only | yes | Opens the system browser. macOS is inert. |
 | `geolocation` | yes | iOS only | n/a | Start-and-poll position requests and the runtime permission prompt. Web is inert on purpose: use `navigator.geolocation`. |
 | `back-button` | yes | iOS only | no | The back *event*, whatever raises it: Android's system back, an iOS left-edge swipe. |
@@ -175,6 +175,14 @@ belonging to another app cannot work however well formed it is. A wrong or
 unregistered id fails exactly like a missing account — no credential, no
 explanation — so check the registration first when sign-in returns `None`
 unexpectedly.
+
+To close the replay window on a Google ID token, issue a fresh nonce on the
+server, store it with the sign-in attempt, and start with
+`start_google_auth_with_nonce(GOOGLE_SERVER_CLIENT_ID, &nonce)`. Credential
+Manager writes the nonce into the token's `nonce` claim; the server checks it
+and consumes it once, as for Apple. `start_google_auth` is unchanged, for a
+server that does not issue nonces. The nonce variant is Android-only and does
+nothing on iOS and macOS.
 
 ## Appearance
 

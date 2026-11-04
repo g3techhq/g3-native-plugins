@@ -34,6 +34,22 @@ class AuthPlugin(private val activity: Activity) {
     private var requestGeneration = 0L
 
     fun startGoogleAuthFromRust(serverClientId: String) {
+        startGoogleAuth(serverClientId, nonce = null)
+    }
+
+    /**
+     * Like [startGoogleAuthFromRust], with the server's nonce set on the request
+     * so Credential Manager writes it into the ID token's `nonce` claim.
+     */
+    fun startGoogleAuthWithNonceFromRust(serverClientId: String, nonce: String) {
+        if (nonce.isEmpty()) {
+            Log.e("Auth", "An empty nonce was supplied for Google sign-in")
+            return
+        }
+        startGoogleAuth(serverClientId, nonce)
+    }
+
+    private fun startGoogleAuth(serverClientId: String, nonce: String?) {
         if (serverClientId.isEmpty()) {
             Log.e("Auth", "No server client id was supplied for Google sign-in")
             return
@@ -52,7 +68,7 @@ class AuthPlugin(private val activity: Activity) {
 
         componentActivity.runOnUiThread {
             componentActivity.lifecycleScope.launch {
-                val credential = startGoogleAuthAsync(componentActivity, serverClientId)
+                val credential = startGoogleAuthAsync(componentActivity, serverClientId, nonce)
                 synchronized(lock) {
                     // If another request started while this one was open, its
                     // state owns the polling slot and this result is stale.
@@ -77,13 +93,17 @@ class AuthPlugin(private val activity: Activity) {
     private suspend fun startGoogleAuthAsync(
         activity: ComponentActivity,
         serverClientId: String,
+        nonce: String?,
     ): String? {
         try {
             val credentialManager = CredentialManager.create(activity)
-            val googleIdOption = GetGoogleIdOption.Builder()
+            val builder = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(serverClientId)
-                .build()
+            if (nonce != null) {
+                builder.setNonce(nonce)
+            }
+            val googleIdOption = builder.build()
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)
                 .build()

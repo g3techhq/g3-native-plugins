@@ -1000,6 +1000,19 @@ mod tests {
         assert!(!kotlin_auth.contains("CountDownLatch"));
         assert!(!kotlin_auth.contains("TimeUnit"));
         assert!(kotlin_auth.contains("GoogleIdTokenCredential.createFrom"));
+
+        // The nonce-binding start: Rust passes two strings to a Kotlin method of
+        // that name and shape, which sets the nonce on the Google ID option.
+        assert!(auth.contains("pub fn start_google_auth_with_nonce("));
+        assert!(auth.contains(
+            "call_unit_str_str(\"startGoogleAuthWithNonceFromRust\", server_client_id, nonce)",
+        ));
+        assert!(kotlin_auth.contains(
+            "fun startGoogleAuthWithNonceFromRust(serverClientId: String, nonce: String)",
+        ));
+        assert!(kotlin_auth.contains("builder.setNonce(nonce)"));
+        // Without a nonce, the request is the one it always was.
+        assert!(kotlin_auth.contains("startGoogleAuth(serverClientId, nonce = null)"));
     }
 
     #[test]

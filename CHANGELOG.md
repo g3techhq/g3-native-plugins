@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Android: `Auth::start_google_auth_with_nonce(server_client_id, nonce)` sets
+  the server's nonce on the Credential Manager request, so the Google ID token
+  carries it in its `nonce` claim and the server can refuse a replayed token.
+  `start_google_auth` is unchanged. Inert on iOS and macOS, which have no
+  native Google flow.
+
 - Storage: `clear_storage()` deletes everything the app stored, without a
   `NativePlugins` context, for the account-deletion path. The README says why
   it matters on iOS, where Keychain items outlive the app.

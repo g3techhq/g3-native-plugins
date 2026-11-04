@@ -94,6 +94,42 @@ impl Auth {
         plugin.call_unit_str("startGoogleAuthFromRust", server_client_id)
     }
 
+    /// Starts Google sign-in like [`start_google_auth`](Auth::start_google_auth),
+    /// binding the ID token to `nonce`: Credential Manager puts it in the
+    /// token's `nonce` claim, so the server can accept the token once, for the
+    /// sign-in it issued the nonce for, and refuse a replayed one.
+    ///
+    /// Pass the nonce exactly as the server will compare it. An empty nonce is
+    /// an error; to sign in without one, call `start_google_auth`.
+    ///
+    /// Android only. iOS has no native Google flow (sign in with Google on the
+    /// web there), so on iOS and macOS this does nothing and returns `Ok(())`.
+    #[cfg(target_os = "android")]
+    pub fn start_google_auth_with_nonce(
+        &mut self,
+        server_client_id: &str,
+        nonce: &str,
+    ) -> Result<(), String> {
+        if server_client_id.trim().is_empty() {
+            return Err("A Google server client id is required for sign-in".to_string());
+        }
+        if nonce.trim().is_empty() {
+            return Err("A Google sign-in nonce must not be empty".to_string());
+        }
+        let plugin = self.get_plugin()?;
+        plugin.call_unit_str_str("startGoogleAuthWithNonceFromRust", server_client_id, nonce)
+    }
+
+    /// Inert: iOS has no native Google sign-in. See the Android version.
+    #[cfg(target_os = "ios")]
+    pub fn start_google_auth_with_nonce(
+        &mut self,
+        _server_client_id: &str,
+        _nonce: &str,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Starts Apple Sign-In with a fresh state and nonce issued by the server.
     #[cfg(target_os = "ios")]
     pub fn start_apple_auth(&mut self, state: &str, nonce: &str) -> Result<(), String> {
@@ -145,6 +181,15 @@ impl Auth {
 
     /// No-op Apple sign-in request for the macOS smoke-test build.
     pub fn start_apple_auth(&mut self, _state: &str, _nonce: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Inert: macOS has no native Google sign-in.
+    pub fn start_google_auth_with_nonce(
+        &mut self,
+        _server_client_id: &str,
+        _nonce: &str,
+    ) -> Result<(), String> {
         Ok(())
     }
 
