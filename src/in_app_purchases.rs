@@ -510,7 +510,7 @@ impl InAppPurchases {
             let Some(json) = taken else {
                 return Ok(None);
             };
-            return Self::decode(&json, "external content link token");
+            Self::decode(&json, "external content link token")
         }
 
         #[cfg(target_os = "ios")]
@@ -538,7 +538,7 @@ impl InAppPurchases {
                 return Ok(None);
             };
             let _: Option<serde_json::Value> = Self::decode(&json, "external content link launch")?;
-            return Ok(Some(()));
+            Ok(Some(()))
         }
 
         #[cfg(target_os = "ios")]
