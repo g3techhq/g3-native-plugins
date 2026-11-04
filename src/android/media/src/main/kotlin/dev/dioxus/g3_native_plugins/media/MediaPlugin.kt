@@ -58,6 +58,12 @@ class MediaPlugin(private val activity: Activity) {
         /// its buffer ran out.
         private const val PAUSED_FOREGROUND_MS = 20 * 60 * 1000L
 
+        /// Read by the WebView that the Gateway3B fork's `dx` generates: while
+        /// it is "true", the WebView ignores its Activity pausing it. A WebView
+        /// from another `dx` pauses as before, and playback still resumes
+        /// through `scheduleWebPlaybackResume`, with the gap that leaves.
+        private const val KEEP_WEBVIEW_RUNNING = "dioxus.webview.keep_running"
+
         /// Reads what the system media controls show straight from the player,
         /// so position and duration are the element's own rather than a copy
         /// that drifts. Title, channel and artwork come from the stage's data
@@ -120,6 +126,19 @@ class MediaPlugin(private val activity: Activity) {
             "window.dispatchEvent(new Event('tawnynativeplaybackresume'))",
             null,
         )
+    }
+
+    /// wry pauses its WebView with the Activity, on an app switch and with the
+    /// screen turned off alike, and Chromium pauses the page's video as soon
+    /// as its WebView is paused. Resuming it straight after cut the audio out
+    /// for a few hundred milliseconds each time. While media plays, the
+    /// WebView keeps running instead, as it did before wry paused it.
+    private fun keepWebViewRunning(keep: Boolean) {
+        if (keep) {
+            System.setProperty(KEEP_WEBVIEW_RUNNING, "true")
+        } else {
+            System.clearProperty(KEEP_WEBVIEW_RUNNING)
+        }
     }
 
     private fun scheduleWebPlaybackResume() {
@@ -594,6 +613,7 @@ class MediaPlugin(private val activity: Activity) {
         cancelPendingDetach()
         lastNotification = null
         playbackActive = false
+        keepWebViewRunning(false)
         playbackTitle = ""
         if (serviceForeground) {
             activity.stopService(Intent(activity, PlaybackService::class.java))
@@ -769,6 +789,7 @@ class MediaPlugin(private val activity: Activity) {
     private fun applyPlaybackActive(active: Boolean, title: String) {
         val wasActive = playbackActive
         playbackActive = active
+        keepWebViewRunning(active)
         if (title.isNotBlank()) playbackTitle = title
         isPlaying = active
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.isInPictureInPictureMode) {

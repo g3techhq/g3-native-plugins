@@ -22,6 +22,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   free on a tablet) instead of unlocking it. An app that keeps phones in
   portrait no longer turns sideways after leaving a landscape video.
 
+- Android: media keeps playing without a gap when the app is switched away
+  from or the screen is turned off. wry 0.57 pauses its WebView with the
+  Activity, which made Chromium pause the video until the plugin resumed it
+  a few hundred milliseconds later. While playback is active the plugin sets
+  the `dioxus.webview.keep_running` system property, and the WebView that
+  the Gateway3B fork's `dx` generates skips that pause.
+
 ### Added
 
 - Storage: `remove_durable` waits for native encrypted deletion, including Android
