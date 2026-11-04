@@ -246,6 +246,25 @@ let token = plugins.storage.write().get("session")?;
 plugins.storage.write().remove("session")?;
 ```
 
+### Clearing it when an account is deleted
+
+Call `g3_native_plugins::clear_storage()` once the server has deleted the
+account (and wherever else the app forgets a user). It needs no provider
+context, so it works straight from the handler that confirms the deletion:
+
+```rust,ignore
+// After the delete-account server function succeeds:
+#[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
+if let Err(error) = g3_native_plugins::clear_storage() {
+    tracing::warn!("could not clear local storage after account deletion: {error}");
+}
+```
+
+On iOS this matters more than it looks: **Keychain items outlive the app**, so
+values left behind come back after a reinstall. On the web it clears
+`localStorage` for the whole origin. With a context at hand,
+`plugins.storage.write().clear()` does the same.
+
 The type is `KeyValueStore`, not `Storage`, because `dioxus::prelude` already
 exports a `Storage` trait — an app glob-importing both would otherwise find the
 name ambiguous and fail to compile.

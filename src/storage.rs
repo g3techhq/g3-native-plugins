@@ -270,6 +270,39 @@ impl KeyValueStore {
     }
 }
 
+/// Deletes everything the app stored through [`KeyValueStore`]: the call to
+/// make when the user deletes their account, after the server has.
+///
+/// Needs no [`crate::NativePlugins`] context, so it works from the handler that
+/// confirms the deletion, from a sign-out path, or before `dioxus::launch`. It
+/// is [`KeyValueStore::clear`] on a fresh store:
+///
+/// - **iOS:** removes this plugin's Keychain items. Do this on deletion: iOS
+///   keeps Keychain items after the app itself is deleted, so a reinstall
+///   would otherwise find the old values.
+/// - **Android:** removes the encrypted preferences.
+/// - **Web:** clears `localStorage` for the whole origin, including anything
+///   other code on the page put there.
+/// - **macOS:** an error, like every other call there.
+/// - **Server and other targets:** `Ok(())`; nothing is stored there.
+pub fn clear_storage() -> Result<(), String> {
+    #[cfg(any(
+        target_arch = "wasm32",
+        target_os = "android",
+        target_os = "ios",
+        target_os = "macos"
+    ))]
+    return KeyValueStore::new().clear();
+
+    #[cfg(not(any(
+        target_arch = "wasm32",
+        target_os = "android",
+        target_os = "ios",
+        target_os = "macos"
+    )))]
+    Ok(())
+}
+
 #[cfg(any(
     target_arch = "wasm32",
     target_os = "android",

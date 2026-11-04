@@ -39,6 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Storage: `clear_storage()` deletes everything the app stored, without a
+  `NativePlugins` context, for the account-deletion path. The README says why
+  it matters on iOS, where Keychain items outlive the app.
+
 - Storage: `remove_durable` waits for native encrypted deletion, including Android
   commit failure. Browser/macOS calls report an error. Privacy cleanup can verify
   removal without relying on Android's asynchronous `remove` behavior.

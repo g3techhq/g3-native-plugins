@@ -182,7 +182,9 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "storage")] { mod storage;
 
     #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use storage::KeyValueStore; }
+    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use storage::KeyValueStore;
+
+    pub use storage::clear_storage; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "updater")] { mod updater;
