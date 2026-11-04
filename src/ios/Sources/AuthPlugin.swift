@@ -5,8 +5,13 @@ import UIKit
 
 @objc(AuthPlugin)
 public class AuthPlugin: NSObject {
+    // Main-thread only: UIKit presents and owns them.
     private var coordinator: AppleSignInCoordinator?
     private var controller: ASAuthorizationController?
+
+    // Read and written from the Rust caller's thread and the main thread, so
+    // only under `lock`, as the in-app purchases plugin does.
+    private let lock = NSLock()
     private var pendingResult: String?
     private var isAwaiting = false
 
@@ -20,6 +25,14 @@ public class AuthPlugin: NSObject {
             return nil
         }
 
+        // Awaiting from this call on, not from when the main queue gets to
+        // it: Rust polls right after this returns, and an "idle" answer then
+        // reads as a cancelled sign-in while the sheet is still opening. The
+        // Android plugin sets its flag the same way.
+        lock.lock()
+        pendingResult = nil
+        isAwaiting = true
+        lock.unlock()
         DispatchQueue.main.async { [weak self] in
             self?.startAppleAuthOnMainThread(request)
         }
@@ -28,6 +41,8 @@ public class AuthPlugin: NSObject {
 
     @objc
     public func getPendingResult() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
         let result = pendingResult
         pendingResult = nil
         return result
@@ -35,22 +50,23 @@ public class AuthPlugin: NSObject {
 
     @objc
     public func getAuthState() -> String? {
-        isAwaiting ? "awaiting" : "idle"
+        lock.lock()
+        defer { lock.unlock() }
+        return isAwaiting ? "awaiting" : "idle"
     }
 
     func setPendingResult(_ result: String?) {
+        lock.lock()
+        pendingResult = result
+        isAwaiting = false
+        lock.unlock()
         DispatchQueue.main.async {
-            self.pendingResult = result
-            self.isAwaiting = false
             self.controller = nil
             self.coordinator = nil
         }
     }
 
     private func startAppleAuthOnMainThread(_ authRequest: AppleAuthRequest) {
-        pendingResult = nil
-        isAwaiting = true
-
         let provider = ASAuthorizationAppleIDProvider()
         let request = provider.createRequest()
         request.requestedScopes = [.fullName, .email]

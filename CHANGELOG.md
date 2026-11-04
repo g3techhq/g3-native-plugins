@@ -80,6 +80,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   service for 20 minutes, so a resume from the background with the screen off
   is no longer refused and a cached, frozen app can still answer the headset.
 
+- iOS auth: `start_apple_auth` marks the attempt as awaiting before it
+  returns, as Android does. It was set only once the main queue opened the
+  sheet, so a caller checking `is_auth_awaiting` straight away read "idle" and
+  took the sign-in as cancelled while the sheet was still opening.
+
 ## [0.4.5] - 2026-10-18
 
 ### Fixed
