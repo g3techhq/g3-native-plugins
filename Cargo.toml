@@ -12,6 +12,13 @@ keywords = ["dioxus", "mobile", "plugins", "ios", "android"]
 categories = ["api-bindings", "gui", "wasm"]
 include = ["Cargo.toml", "build.rs", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "src/**"]
 
+[package.metadata.docs.rs]
+# Every plugin, documented as an app on a phone sees it: most plugins have no
+# API on docs.rs's default Linux target, where they would not show up at all.
+all-features = true
+default-target = "aarch64-linux-android"
+targets = ["aarch64-linux-android", "aarch64-apple-ios", "wasm32-unknown-unknown"]
+
 [lib]
 name = "g3_native_plugins"
 path = "src/lib.rs"

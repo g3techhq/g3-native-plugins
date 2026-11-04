@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   report `env(safe-area-inset-*)`, so CSS reads them with `env()` as the
   fallback.
 
+- docs.rs documents every feature, on the Android, iOS and wasm targets: on
+  its default Linux target most plugins have no API to show.
+
 - **Breaking:** builds against Dioxus `=0.8.0-alpha.3` from the Gateway3B fork
   (upstream `main` plus the g3 commits) instead of 0.7.9. Apps patch `dioxus`,
   `dioxus-signals` and `manganis` to the fork and build with its `dx`; see the
