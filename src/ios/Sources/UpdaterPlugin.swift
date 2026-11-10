@@ -1,12 +1,13 @@
 import Foundation
+import UIKit
 
 /**
- * The platform half of the over-the-air updater: where bundles live, what the
- * app's version is, and an HTTP client.
+ * The platform half of the app updater: a download folder, an HTTP client,
+ * and opening the install link.
  *
- * Everything that decides anything — signature and hash checks, staging,
- * install and rollback — is in Rust, where it is the same code on both
- * platforms and is tested on the host. This side only moves bytes.
+ * Everything that decides anything — which release, and whether its signed
+ * install manifest holds — is in Rust, where it is the same code on every
+ * platform and is tested on the host. This side moves bytes and opens URLs.
  *
  * `downloadFromRust` blocks, deliberately, and it is safe to: the Rust side
  * only calls it from the updater's own worker thread, and URLSession delivers
@@ -38,17 +39,15 @@ public class UpdaterPlugin: NSObject {
         json(["error": message])
     }
 
-    /// Under Application Support and excluded from backup: a bundle is a cache
-    /// of something the server can always send again, and restoring one onto
-    /// a device with a different app build would only have it thrown away as
-    /// the wrong runtime.
+    /// Under Caches, which is never backed up and which iOS may clear: what is
+    /// downloaded here is only needed until the install starts.
     @objc
     public func dataDirectoryFromRust() -> String? {
-        guard let support = FileManager.default.urls(
-            for: .applicationSupportDirectory,
+        guard let caches = FileManager.default.urls(
+            for: .cachesDirectory,
             in: .userDomainMask
         ).first else { return nil }
-        var directory = support
+        let directory = caches
             .appendingPathComponent("g3_native_plugins", isDirectory: true)
             .appendingPathComponent("updater", isDirectory: true)
         do {
@@ -56,19 +55,29 @@ public class UpdaterPlugin: NSObject {
                 at: directory,
                 withIntermediateDirectories: true
             )
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            try directory.setResourceValues(values)
         } catch {
-            NSLog("[UpdaterPlugin] could not prepare the bundle directory: \(error)")
+            NSLog("[UpdaterPlugin] could not prepare the download directory: \(error)")
             return nil
         }
         return directory.path
     }
 
+    /// Open the install link (`itms-services://`) or store page. iOS shows
+    /// its own install prompt or the store; nothing comes back to wait for.
+    /// Returns an error message, or nil once the open is on its way.
     @objc
-    public func appVersionFromRust() -> String? {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    public func openUrlFromRust(_ text: String) -> String? {
+        guard let url = URL(string: text) else {
+            return "The install link is not a valid URL."
+        }
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url, options: [:]) { opened in
+                if !opened {
+                    NSLog("[UpdaterPlugin] iOS would not open the install link")
+                }
+            }
+        }
+        return nil
     }
 
     /// Fetch a URL to a file and report the status. The body is only moved to

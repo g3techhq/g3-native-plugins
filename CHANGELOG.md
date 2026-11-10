@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking:** `updater` now updates the installed app instead of the files
+  the WebView loads. It checks a Tauri-style update server, downloads this
+  platform's build, verifies its minisign signature, and installs it: the APK
+  through `PackageInstaller` on Android (silently on Android 12+ where the
+  system allows it), the NSIS or MSI installer on Windows, the `.app` on
+  macOS, an AppImage or `.deb` on Linux, and an ad hoc or enterprise
+  `itms-services://` link (or a store link) on iOS. `Updater` exists on every
+  target, Windows and Linux included. Removed with the content updater:
+  `Updater::launch`, `notify_ready`, `apply_now`, `reset`, `bundle_dir`,
+  `resolve_asset`, `bundle_content_type`, `UpdaterConfig::embedded_version`
+  and `runtime_version`; `configure` and `install` are new. The Android
+  module now declares `REQUEST_INSTALL_PACKAGES` and
+  `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, so do not enable `updater` in a
+  Google Play build.
+
 - Safe area: the README and matrix say plainly that the `--g3-safe-area-*`
   variables are set only on Android; iOS and the web leave them unset and
   report `env(safe-area-inset-*)`, so CSS reads them with `env()` as the

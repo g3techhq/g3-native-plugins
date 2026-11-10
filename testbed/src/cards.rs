@@ -602,8 +602,8 @@ pub fn UpdaterCard() -> Element {
     let reporter = use_context::<Reporter>();
 
     rsx! {
-        Card { title: "Updater", what: "Signed over-the-air bundles",
-            Check { area: "updater", label: "Launched and confirmed" }
+        Card { title: "Updater", what: "Signed app updates",
+            Check { area: "updater", label: "Configured" }
             Check { area: "updater.check", label: "Update check" }
             div { class: "row",
                 Action { label: "Check", onclick: move |_| {
@@ -618,11 +618,11 @@ pub fn UpdaterCard() -> Element {
                         .map(|_| "downloading");
                     reporter.result("updater.check", result);
                 } }
-                Action { label: "Reset", onclick: move |_| {
+                Action { label: "Install", onclick: move |_| {
                     let mut plugins = plugins;
-                    let result = plugins.updater.write().reset()
-                        .map(|_| "back to the embedded content");
-                    reporter.result("updater", result);
+                    let result = plugins.updater.write().install()
+                        .map(|_| "installing");
+                    reporter.result("updater.check", result);
                 } }
             }
             p { class: "hint", "The test endpoint does not exist, so a check reports that no endpoint answered." }

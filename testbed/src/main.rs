@@ -38,13 +38,13 @@ const UPDATER_TEST_KEY: &str = "RWQBI0VniavN7wOhB7/zzhC+HXDdGOdLwJln5NYwm6UNXx3c
 fn main() {
     dioxus::logger::initialize_default();
     // Before launch, where they belong: a notification tap that starts the
-    // app is delivered during launch, and the updater installs or rolls back
-    // before anything reads a bundle file.
+    // app is delivered during launch.
     let _ = Notifications::new().prepare();
     let _ = PushNotifications::new().prepare();
-    let _ = Updater::new().launch(
-        UpdaterConfig::new(UPDATER_TEST_KEY, "0.1.0")
-            .endpoint("https://g3-testbed.example.com/updates/{{target}}/{{current_version}}"),
+    let _ = Updater::new().configure(
+        UpdaterConfig::new(UPDATER_TEST_KEY, env!("CARGO_PKG_VERSION")).endpoint(
+            "https://g3-testbed.example.com/updates/{{target}}/{{arch}}/{{current_version}}",
+        ),
     );
     dioxus::launch(App);
 }
@@ -119,16 +119,12 @@ fn Harness() -> Element {
             "notifications.permissions",
             plugins.notifications.write().check_permissions(),
         );
-        // Reaching this effect is the proof a bundle works, so confirm it.
-        let serving = plugins.updater.write().current_version();
+        let running = plugins.updater.write().current_version();
         reporter.result(
             "updater",
-            plugins.updater.write().notify_ready().map(|_| {
-                format!(
-                    "serving {}",
-                    serving.unwrap_or_else(|| "nothing: launch failed".to_string())
-                )
-            }),
+            running
+                .map(|version| format!("configured for {version}"))
+                .ok_or_else(|| "configure failed".to_string()),
         );
 
         // These three used to go through manganis-generated Android calls,

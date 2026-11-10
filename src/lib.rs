@@ -1,7 +1,7 @@
 //! Dioxus wrappers around native platform capabilities: clipboard and share
 //! sheets, Apple and Google sign-in, opening external URLs, system back
 //! handling, background media playback, local and push notifications,
-//! over-the-air bundle updates, and receiving the URL a deep link opened the
+//! updating the installed app, and receiving the URL a deep link opened the
 //! app with - plus helpers for the deep-link metadata files iOS and Android
 //! expect a server to host.
 //!
@@ -189,10 +189,9 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "updater")] { mod updater;
 
-    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use updater::{bundle_content_type, DownloadProgress, Update, UpdaterConfig, UpdaterState};
-
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
-    #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use updater::Updater; }
+    // Every target, Windows and Linux included: they have no NativePlugins,
+    // and an app there makes its own handle.
+    pub use updater::{DownloadProgress, Update, Updater, UpdaterConfig, UpdaterState}; }
 }
 use dioxus::prelude::*;
 
@@ -298,8 +297,9 @@ pub struct NativePlugins {
     /// worse than one that says it cannot help.
     #[cfg(feature = "storage")]
     pub storage: Signal<KeyValueStore>,
-    /// Over-the-air bundle updates. Available on every target: the web and
-    /// macOS builds are inert, so callers need no cfg of their own.
+    /// Updating the installed app. Available on every target: the web build
+    /// is inert, so callers need no cfg of their own. The same process-wide
+    /// updater as `Updater::new()`.
     #[cfg(feature = "updater")]
     pub updater: Signal<Updater>,
     /// System-bar insets for an edge-to-edge page, and hiding the bars. On
@@ -520,7 +520,7 @@ mod tests {
             include_str!("notifications.rs"),
             include_str!("push_notifications.rs"),
             include_str!("storage.rs"),
-            include_str!("updater.rs"),
+            include_str!("updater/android.rs"),
         ] {
             let production = production_source(source);
             assert!(!production.contains("android_context()"));
@@ -1057,34 +1057,64 @@ mod tests {
     }
 
     #[test]
-    fn updater_trusts_nothing_before_the_signature_and_keeps_decisions_in_rust() {
-        let source = production_source(include_str!("updater.rs"));
+    fn updater_installs_nothing_unsigned_and_keeps_decisions_in_rust() {
+        let engine = production_source(include_str!("updater/engine.rs"));
+        let updater = production_source(include_str!("updater/mod.rs"));
+        let android = production_source(include_str!("updater/android.rs"));
+        let ios = production_source(include_str!("updater/ios.rs"));
         let kotlin = include_str!(
             "android/updater/src/main/kotlin/dev/dioxus/g3_native_plugins/updater/UpdaterPlugin.kt",
         );
+        let manifest = include_str!("android/updater/src/main/AndroidManifest.xml");
         let swift = include_str!("ios/Sources/UpdaterPlugin.swift");
         let gradle = include_str!("android/updater/build.gradle.kts");
-        // The manifest is verified before it is parsed, and its hashes carry
-        // that guarantee to every file.
-        let verified = source
-            .find("verify_signature(&config.pubkey")
-            .expect("the manifest signature is checked");
-        let parsed = source
-            .find("let manifest = parse_manifest(&bytes)?")
-            .unwrap();
-        assert!(verified < parsed);
-        assert!(source.contains("does not match the hash in the signed manifest"));
-        assert!(source.contains("minisign_verify::PublicKey"));
-        // Installed on trial, rolled back if never confirmed.
-        assert!(source.contains("pub fn notify_ready(&mut self)"));
-        assert!(source.contains("state.trial && state.trial_launches >= 1"));
-        // Downloads happen off the Dioxus thread.
-        assert!(source.contains("std::thread::Builder::new()"));
-        // The native sides only move bytes: no hashing or verification there.
+        // Every download is checked before it is returned, and a failure
+        // deletes it; the install step only ever sees a returned path.
+        let verified = engine
+            .find("release::verify_file(&config.pubkey, signature, &destination)")
+            .expect("the download is verified");
+        let returned = engine.find("Ok(destination)").unwrap();
+        assert!(verified < returned);
+        assert!(engine.contains("The release gives no signature for this build"));
+        assert!(updater.contains("let Some(url) = platform::Native::download_url(&candidate)?"));
+        // Network and installing happen off the Dioxus thread.
+        assert!(updater.contains("std::thread::Builder::new()"));
+        // The Rust ↔ Kotlin calls, by name.
+        for method in [
+            "dataDirectoryFromRust",
+            "downloadFromRust",
+            "canInstallFromRust",
+            "openInstallSettingsFromRust",
+            "installFromRust",
+            "installStatusFromRust",
+        ] {
+            assert!(android.contains(&format!("\"{method}\"")), "{method}");
+            assert!(kotlin.contains(&format!("fun {method}(")), "{method}");
+        }
+        assert!(android.contains("format!(\"{}.part\""));
+        assert!(kotlin.contains("File(destination.path + \".part\")"));
+        assert!(kotlin.contains("File(destination.path + \".length\")"));
+        assert!(kotlin.contains("USER_ACTION_NOT_REQUIRED"));
+        assert!(kotlin.contains("STATUS_PENDING_USER_ACTION"));
+        assert!(kotlin.contains("\"aborted\""));
+        assert!(android.contains("\"aborted\" => Some(UpdaterState::Ready"));
+        assert!(manifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
+        assert!(manifest.contains("android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"));
+        // The Rust ↔ Swift calls, by name.
+        for method in [
+            "dataDirectoryFromRust",
+            "downloadFromRust",
+            "openUrlFromRust",
+        ] {
+            assert!(ios.contains(&format!("pub fn {method}(")), "{method}");
+            assert!(
+                swift.contains(&format!("public func {method}(")),
+                "{method}"
+            );
+        }
+        // The native sides move bytes: no verification there to drift.
         assert!(!kotlin.contains("MessageDigest"));
         assert!(!swift.contains("CryptoKit"));
-        assert!(kotlin.contains("noBackupFilesDir"));
-        assert!(swift.contains("isExcludedFromBackup = true"));
         // A half-written file never sits where a finished one belongs.
         assert!(kotlin.contains("partial.renameTo(destination)"));
         assert!(!gradle.contains("implementation("));
@@ -1243,7 +1273,9 @@ mod tests {
                 .and_then(|name| name.to_str())
                 .expect("module name")
                 .to_owned();
+            // A plugin is one file, or a folder whose Android half is its own.
             let source = std::fs::read_to_string(root.join(format!("src/{module}.rs")))
+                .or_else(|_| std::fs::read_to_string(root.join(format!("src/{module}/android.rs"))))
                 .unwrap_or_else(|error| panic!("{module} has no Rust source: {error}"));
             let rules = std::fs::read_to_string(directory.join("consumer-rules.pro"))
                 .unwrap_or_else(|error| panic!("{module} ships no consumer-rules.pro: {error}"));

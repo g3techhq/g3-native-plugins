@@ -47,7 +47,7 @@ let plugins: [Plugin] = [
     Plugin(token: "Notifications", sources: ["NotificationsPlugin.swift", "NotificationCenterRelay.swift"], frameworks: ["UIKit", "UserNotifications"]),
     Plugin(token: "PushNotifications", sources: ["PushNotificationsPlugin.swift"], frameworks: ["UIKit", "UserNotifications"], requires: ["Notifications"]),
     Plugin(token: "Storage", sources: ["StoragePlugin.swift"], frameworks: ["Security"]),
-    Plugin(token: "Updater", sources: ["UpdaterPlugin.swift"], frameworks: ["Foundation"]),
+    Plugin(token: "Updater", sources: ["UpdaterPlugin.swift"], frameworks: ["Foundation", "UIKit"]),
 ]
 
 let productPrefix = "G3NativePlugins"

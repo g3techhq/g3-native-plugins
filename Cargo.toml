@@ -3,7 +3,7 @@ name = "g3-native-plugins"
 version = "0.4.5"
 
 edition = "2024"
-description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, notifications, over-the-air updates, deep links, and platform integration."
+description = "Dioxus plugins for mobile permissions, auth, storage, purchases, media, notifications, self-updates, deep links, and platform integration."
 repository = "https://github.com/g3techhq/g3-native-plugins"
 readme = "README.md"
 documentation = "https://docs.rs/g3-native-plugins"
@@ -35,7 +35,6 @@ serde_json = "1.0"
 # what Tauri's updater verifies with, which keeps its signing tooling usable.
 minisign-verify = { version = "0.2.5", optional = true }
 semver = { version = "1.0", optional = true }
-sha2 = { version = "0.10", optional = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = "0.3"
@@ -47,6 +46,18 @@ web-sys = { version = "0.3", features = ["Location", "Navigator", "Storage", "Wi
 # against jni 0.21.1; asking for at least that keeps the two one crate.
 jni = "0.21.1"
 ndk-context = "0.1.1"
+
+# The desktop updater fetches with its own client, since there is no platform
+# one to call. ring rather than aws-lc-rs, so Windows needs no CMake or NASM,
+# and the OS verifier rather than webpki-roots, so a machine's own trusted
+# certificates (a home lab's CA) work. The archives are the ones `dx bundle`
+# writes for updates: `.zip` around a Windows installer, `.tar.gz` otherwise.
+[target.'cfg(any(windows, target_os = "macos", target_os = "linux"))'.dependencies]
+flate2 = { version = "1.0", optional = true }
+tar = { version = "0.4.44", optional = true, default-features = false }
+ureq = { version = "3.1", optional = true, default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier"] }
+# "deflate" rather than "deflate-flate2", which in 2.x forgets to turn on flate2.
+zip = { version = "2.4", optional = true, default-features = false, features = ["deflate"] }
 
 [features]
 default = []
@@ -68,7 +79,7 @@ push-notifications = ["notifications"]
 # Started by NativePluginsProvider: an app enabling it needs no code.
 safe-area = []
 storage = []
-updater = ["dep:minisign-verify", "dep:semver", "dep:sha2"]
+updater = ["dep:minisign-verify", "dep:semver", "dep:flate2", "dep:tar", "dep:ureq", "dep:zip"]
 
 [patch.crates-io]
 # Dioxus fork (upstream main + g3 commits; see G3-PATCHES.md there). Local

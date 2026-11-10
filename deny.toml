@@ -20,7 +20,13 @@ allow = [
     "Zlib",
 ]
 confidence-threshold = 0.8
-exceptions = []
+exceptions = [
+    # Mozilla's root certificates as data. rustls-platform-verifier depends on
+    # it only for wasm32, and the updater pulls the verifier in only on
+    # Windows, macOS and Linux, so no build contains it; cargo-deny checks
+    # every target's graph regardless.
+    { name = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
+]
 
 [licenses.private]
 ignore = true

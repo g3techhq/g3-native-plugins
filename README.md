@@ -5,7 +5,7 @@
 [![docs.rs](https://docs.rs/g3-native-plugins/badge.svg)](https://docs.rs/g3-native-plugins)
 [![License](https://img.shields.io/crates/l/g3-native-plugins.svg)](#license)
 
-Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, external URLs, notifications and push, over-the-air bundle updates, and deep-link metadata helpers.
+Dioxus wrappers for native clipboard/share, Apple and Google auth hooks, external URLs, notifications and push, updating the installed app, and deep-link metadata helpers.
 
 The Cargo package is `g3-native-plugins`; the Rust crate name is `g3_native_plugins`.
 
@@ -32,7 +32,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
 | `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
 | `push-notifications` | yes | iOS only | no | Remote push: FCM on Android, APNs on iOS. Turns on `notifications`. |
-| `updater` | yes | iOS only | no | Signed over-the-air updates of the files the WebView loads, with rollback. Not of the Rust binary — see below. |
+| `updater` | yes | iOS only | no | Signed updates of the installed app, from a Tauri-style update server. Android installs the APK; Windows, macOS and Linux install too (they have no `NativePlugins`: use `Updater::new()`); iOS opens an ad hoc or enterprise install link. See [App updates](#app-updates). |
 
 The `deep_links` module's metadata builders are not feature-gated and build
 everywhere, including on the server. Only receiving a link needs the
@@ -56,8 +56,7 @@ Enable `app-info` and call `g3_native_plugins::installed_app_info()` from a mobi
 effect or handler. It returns `Result<Option<AppInfo>, String>` with `identifier`,
 `version`, and `build` from the installed package. Keep the build as text: Android
 uses its full `longVersionCode`, while iOS build numbers may have numeric parts.
-Other targets return `Ok(None)`. Use this metadata for store-update checks; the
-content updater's version describes a different thing.
+Other targets return `Ok(None)`. Use this metadata for store-update checks.
 
 Enable only the plugins your app uses:
 
@@ -96,7 +95,7 @@ API. The app's own manifest covers what it links. Two things to put there:
 
 - **File timestamps.** Rust's `std::fs` calls `stat`, one of Apple's
   file-timestamp APIs, whenever a file's metadata is read; `updater` does that
-  for the bundles it keeps. Declare `NSPrivacyAccessedAPICategoryFileTimestamp`
+  for what it downloads. Declare `NSPrivacyAccessedAPICategoryFileTimestamp`
   with reason `C617.1` (files inside the app's own container).
 - **Collected data.** What an enabled plugin hands the app, for the manifest's
   `NSPrivacyCollectedDataTypes` and the App Store privacy label, if the app
@@ -823,157 +822,159 @@ to send through.
 - Seeing a push needs the notification permission; receiving a data-only push
   does not.
 
-## Over-the-Air Updates
+## App updates
 
-The Tauri updater's model — signed releases from an update server, checked
-against a public key compiled into the app — applied to what a mobile store
-permits.
+The `updater` feature updates the installed app the way Tauri's updater does:
+it asks an update server for the latest release, downloads the build for this
+platform, checks it against a minisign public key compiled into the app, and
+installs it. It is for apps distributed outside the stores: a sideloaded APK,
+a desktop installer, an ad hoc or enterprise iOS build.
 
-### What can and cannot be updated
-
-**The Rust side of a Dioxus app cannot be updated over the air, by this or any
-updater.** It is native machine code signed as part of the app. iOS will not
-execute a native library that was not signed with the app, and both stores'
-rules forbid an app replacing its own native code outside review. React
-Native's JS bundle is different in kind, not degree: it is interpreted by a
-JavaScript engine, and Apple's guideline 3.3.1(B) and Play's device and
-network abuse policy both carve out exactly that — code run by WebKit or a
-JavaScript engine, that does not change what the app is for.
-
-So `updater` updates **files the WebView loads or the app reads**: HTML, CSS,
-JavaScript, WebAssembly run by the WebView, images, fonts, JSON, content. How
-much of an app that covers depends on where its logic lives:
-
-- Styles, images, copy, and configuration: any Dioxus app.
-- Logic: only what runs *in the WebView* — a web page, script, or a
-  WebAssembly build shown in an `iframe` — not the components in the native
-  binary.
-
-A native change still needs a store release. The runtime version (below)
-makes sure a bundle built for one native release is never served by another.
+| Platform | Release file | Installed by | What the user sees |
+| --- | --- | --- | --- |
+| Android | `.apk` | `PackageInstaller` | Nothing on Android 12+ once the app may install apps; otherwise the system's install dialog |
+| Windows | NSIS `-setup.exe` or `.msi`, bare or in dx's `.zip` | The installer, silently, after the app exits | The app closes and reopens; UAC for a per-machine install |
+| macOS | `.app.tar.gz` | The `.app` is replaced in place | The app closes and reopens |
+| Linux | `.AppImage` (bare or `.tar.gz`), or `.deb` | Renaming over `$APPIMAGE`; `pkexec dpkg -i` | The app closes and reopens; a password prompt for a `.deb` |
+| iOS | An HTTPS `manifest.plist`, or an App Store / TestFlight link | iOS, through `itms-services://` | iOS's install prompt, or the store |
+| Web | — | — | Inert: a deploy already is the update |
 
 ### Setup
+
+```toml
+g3-native-plugins = { version = "0.4", features = ["updater"] }
+```
 
 ```rust,ignore
 use g3_native_plugins::{Updater, UpdaterConfig, UpdaterState};
 
-// `minisign -G` or `tauri signer generate`. Only the public half ships.
+// The public half of the release key. Not a secret.
 const UPDATER_PUBLIC_KEY: &str = "RWQ...";
 
 fn main() {
-    let config = UpdaterConfig::new(UPDATER_PUBLIC_KEY, "1.4.0") // the embedded content's version
-        .endpoint("https://updates.example.com/{{target}}/{{runtime_version}}/{{current_version}}");
-    // Before anything reads a bundle file: this is where a downloaded update
-    // is installed, or a broken one rolled back.
-    let _ = Updater::new().launch(config);
+    let _ = Updater::new().configure(
+        UpdaterConfig::new(UPDATER_PUBLIC_KEY, env!("CARGO_PKG_VERSION"))
+            .endpoint("https://updates.example.com/latest.json"),
+    );
     dioxus::launch(App);
 }
 
-// Once the app is up on the new bundle, say so. Skip this and the next launch
-// rolls back.
-plugins.updater.write().notify_ready()?;
-
-plugins.updater.write().start_check()?;
-// ...then poll:
-match plugins.updater.write().state() {
-    UpdaterState::Available(update) => plugins.updater.write().start_download()?,
+// From a handler or effect, then poll `state()` (a timer, or each render):
+let mut updater = Updater::new();
+updater.start_check()?;
+match updater.state() {
+    UpdaterState::Available(update) => { /* offer it, then */ updater.start_download()? }
     UpdaterState::Downloading { progress, .. } => { /* progress.bytes_done / bytes_total */ }
-    UpdaterState::Ready(update) => { /* active next launch, or apply_now() */ }
+    UpdaterState::Ready(update) => { /* offer to install, then */ updater.install()? }
+    UpdaterState::NeedsPermission(_) => { /* Android settings are open; install() again on return */ }
+    UpdaterState::Installing(_) => { /* the system has it */ }
     UpdaterState::Failed(error) => { /* nothing was installed */ }
     _ => {}
 }
 ```
 
-Serve the active bundle to the WebView from a Dioxus asset handler, falling
-back to the embedded copy when no bundle is active or it lacks the file:
+Every `Updater` handle shares one process-wide state, so `Updater::new()` and
+`NativePlugins::updater` are the same updater. Windows and Linux have no
+`NativePlugins`; use `Updater::new()` there.
 
-```rust,ignore
-use dioxus::mobile::{use_asset_handler, wry::http::Response};
-use g3_native_plugins::{bundle_content_type, Updater};
+`install()` on Windows, macOS and Linux **ends the process** once the new
+version is on its way: save what needs saving before calling it.
 
-use_asset_handler("bundle", |request, responder| {
-    let path = request.uri().path().trim_start_matches("/bundle/").to_string();
-    let bytes = Updater::new()
-        .resolve_asset(&path)
-        .and_then(|file| std::fs::read(file).ok())
-        .or_else(|| embedded_asset(&path)); // e.g. from include_bytes!
-    let response = match bytes {
-        Some(bytes) => Response::builder()
-            .header("Content-Type", bundle_content_type(&path))
-            .body(bytes),
-        None => Response::builder().status(404).body(Vec::new()),
-    };
-    responder.respond(response.unwrap());
-});
-// Then reference files as "/bundle/app.css", "/bundle/index.html", ...
-```
+`current_version` is semver, and only a newer release is offered. `dx` derives
+every platform's version from the crate version (Android's `versionCode` is
+`major * 1000000 + minor * 1000 + patch`), so `env!("CARGO_PKG_VERSION")`
+matches what is installed.
 
-### Server format
+### Publishing a release
 
-The endpoint answers `204 No Content` for "nothing new", or a release in the
-same shape a Tauri update server returns — a per-platform table, or a single
-`url` and `signature` for a server that already chose the platform from the
-URL. Platform keys are `ios-aarch64`, `android-aarch64`, and so on, falling
-back to plain `ios` or `android`:
+1. **A key pair, once.** `minisign -G -p updater.pub -s updater.key`, or
+   `tauri signer generate`. Compile the public key into the app; keep the
+   secret key out of the repository (a CI secret).
+2. **The builds.** `dx bundle --package-types nsis --package-types updater`
+   (Windows; likewise `macos`, `appimage` or `deb`) writes the update archives
+   to `bundle/updater/`. For Android, the release `.apk`; for iOS, an ad hoc
+   or enterprise `.ipa` with its `manifest.plist`.
+3. **Sign each file** the app downloads: `minisign -S -s updater.key -m
+   Tawny_1.1.0_x64-setup.zip` writes a `.minisig` beside it. On iOS, sign the
+   `manifest.plist`, not the IPA: the app checks the manifest and iOS fetches
+   the IPA it names.
+4. **Publish the release JSON** at the endpoint, with each `.minisig`'s
+   contents as its `signature`:
 
 ```json
 {
-  "version": "1.4.1",
-  "notes": "Fixes the scorecard layout",
-  "pub_date": "2026-09-24T12:00:00Z",
+  "version": "1.1.0",
+  "notes": "Faster startup.",
+  "pub_date": "2026-11-10T12:00:00Z",
   "platforms": {
-    "ios": { "url": "https://cdn.example.com/1.4.1/manifest.json", "signature": "..." },
-    "android": { "url": "https://cdn.example.com/1.4.1/manifest.json", "signature": "..." }
+    "android": { "url": "https://updates.example.com/1.1.0/Tawny.apk", "signature": "untrusted comment: ..." },
+    "windows-x86_64-nsis": { "url": "https://updates.example.com/1.1.0/Tawny_1.1.0_x64-setup.zip", "signature": "..." },
+    "darwin-aarch64": { "url": "https://updates.example.com/1.1.0/Tawny_1.1.0.app.tar.gz", "signature": "..." },
+    "linux-x86_64-appimage": { "url": "https://updates.example.com/1.1.0/Tawny_1.1.0_amd64.AppImage.tar.gz", "signature": "..." },
+    "ios": { "url": "https://updates.example.com/1.1.0/manifest.plist", "signature": "..." }
   }
 }
 ```
 
-Where Tauri's `url` points at an installer, here it points at a **bundle
-manifest**: every file in the bundle and its SHA-256. The signature is over the
-manifest's exact bytes, and the hashes carry that guarantee to each file.
-Files are fetched relative to the manifest unless an entry gives its own `url`
-or the manifest a `base_url`:
+A build looks itself up as `{target}-{arch}-{installer}`, then
+`{target}-{arch}`, then `{target}`. Targets are Tauri's (`android`, `ios`,
+`windows`, `darwin`, `linux`), architectures `aarch64`, `x86_64`, `armv7`,
+`i686`, and installers `apk`, `ipa`, `nsis`, `msi`, `app`, `appimage`, `deb`.
+A server that picks the build itself can answer with a top-level `url` and
+`signature` instead of `platforms`, or `204 No Content` for "nothing new".
+Endpoints may use `{{target}}`, `{{arch}}` and `{{current_version}}`.
+Signatures from `minisign` and from `tauri signer sign` (base64-wrapped) both
+work.
 
-```json
-{
-  "version": "1.4.1",
-  "runtime_version": "1.4.0",
-  "files": [
-    { "path": "index.html", "sha256": "ff2e...7118", "size": 13 },
-    { "path": "css/app.css", "sha256": "8dfb...1e3d", "size": 21 }
-  ]
-}
-```
+### Per platform
 
-Sign it with `minisign -S -s updater.key -m manifest.json` and put the contents
-of `manifest.json.minisig` in `signature`, or use `tauri signer sign` and its
-base64 output as is. Both key and signature formats are accepted either way.
+- **Android.** The plugin declares `REQUEST_INSTALL_PACKAGES`, which Google
+  Play restricts: **do not enable `updater` in a build that goes to Play.**
+  The first install asks the user to let the app install apps
+  (`NeedsPermission` opens that screen). From Android 12, an app updating
+  itself skips the confirmation dialog when it targets a recent SDK (34 or
+  higher on Android 16; the floor rises each release) and declares `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, which the
+  plugin does; the system may still ask, and then shows its dialog. Android
+  refuses an APK signed with a different key or with a lower `versionCode`,
+  so every release must be signed with the same key. A cancelled dialog goes
+  back to `Ready`.
+- **Windows.** A hidden PowerShell waits for the app to exit, runs the
+  installer (`/S /D=<this app's folder>` for NSIS, since dx's installer does
+  not remember its folder; `msiexec /i … /passive` for MSI), then starts the
+  app again. A per-machine install shows UAC. Set
+  `webview_install_mode = { EmbedBootstrapper = { silent = true } }` under
+  `[bundle.windows]` in Dioxus.toml: dx's default embeds Microsoft's 183 MB
+  offline WebView2 installer and runs it with a window on every install, so
+  each update would download it and interrupt the silent install.
+- **macOS.** The running `.app` is moved aside, the new one renamed into its
+  place, and the old one deleted; if the swap fails the old one goes back.
+  The app needs write access to its own folder, which an administrator has
+  in `/Applications`; there is no elevation prompt.
+- **Linux.** An AppImage replaces the file `$APPIMAGE` names. A `.deb` goes
+  through `pkexec dpkg -i`, which asks for an administrator's password.
+- **iOS.** No app can install an IPA, but iOS installs an ad hoc or
+  enterprise build from an `itms-services://` link to its `manifest.plist`,
+  which `install()` opens after checking the manifest's signature; the
+  device must be in the build's provisioning profile. A release may instead
+  name an App Store or TestFlight link, which is opened as is: there is
+  nothing to download, so nothing is signed. iOS reports nothing back, so the
+  state returns to `Ready` in case the user comes back without installing.
+  EU Web Distribution is not supported.
 
-### What is checked, and when
+### What is checked
 
-- The manifest is verified against the public key **before it is parsed**.
-- Its `version` must match what the release advertised (the release JSON is
-  unsigned; the manifest is the authority), and be newer than what is running.
-- Its `runtime_version` must equal the app's. It defaults to the app's version
-  (`CFBundleShortVersionString`, `versionName`), so every store release starts
-  clean; pin it with `UpdaterConfig::runtime_version` to keep bundles across
-  native releases that did not change what the bundle relies on. When it
-  changes, every downloaded bundle is discarded.
-- Every file must match its hash and size. Files unchanged since the active
-  bundle are copied rather than downloaded.
-- Paths are relative and cannot climb out of the bundle directory.
-- The bundle is staged, then moved into place and installed at the **next
-  launch** — never under a running app, unless it asks with `apply_now()`.
-- A new bundle launches **on trial**. If that launch ends without
-  `notify_ready()`, the next launch goes back to the previous bundle and that
-  version is never offered again.
-- A downloaded bundle no newer than the embedded content (after a store update
-  that shipped it) is discarded in favor of the embedded copy.
-
-Downloads use the platform's HTTP stack (`URLSession`, `HttpURLConnection`),
-so App Transport Security, network security config, and system proxies apply
-as they would to anything else in the app. Bundles live in storage excluded
-from backup.
+- The release JSON is not signed and is not trusted: it only says where to
+  look. Its version must be newer than `current_version`.
+- Every downloaded file must match its minisign signature from the
+  configured key before anything opens it; a file that does not is deleted.
+  An entry without a signature is refused before it is downloaded (iOS store
+  links excepted, since nothing is downloaded).
+- Each platform then applies its own checks on top: Android the APK's
+  signing key and `versionCode`, macOS Gatekeeper, iOS the provisioning
+  profile.
+- Downloads go to the user's cache folder (`%LOCALAPPDATA%`,
+  `~/Library/Caches`, `$XDG_CACHE_HOME`; the app's cache on mobile), never a
+  shared temporary folder, and are removed at the next `configure`.
 
 ## License
 
