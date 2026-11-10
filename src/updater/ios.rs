@@ -34,6 +34,7 @@ unsafe extern "Swift" {
 pub(super) enum Step {
     Started,
     NeedsPermission,
+    Opened,
 }
 
 pub(super) struct Native {
@@ -51,7 +52,7 @@ impl Native {
         PlatformKey {
             target: "ios",
             arch: std::env::consts::ARCH,
-            installers: &["ipa"],
+            installers: &["ipa", super::release::STORE],
         }
     }
 
@@ -84,7 +85,12 @@ impl Native {
                     percent_encode(&manifest)
                 )
             }
-            Link::Store(url) => url,
+            Link::Store(url) => {
+                return match openUrlFromRust(&self.plugin, url) {
+                    Some(error) if !error.is_empty() => Err(error),
+                    _ => Ok(Step::Opened),
+                };
+            }
         };
         match openUrlFromRust(&self.plugin, url) {
             Some(error) if !error.is_empty() => Err(error),

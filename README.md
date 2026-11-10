@@ -32,7 +32,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
 | `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
 | `push-notifications` | yes | iOS only | no | Remote push: FCM on Android, APNs on iOS. Turns on `notifications`. |
-| `updater` | yes | iOS only | no | Signed updates of the installed app, from a Tauri-style update server. Android installs the APK; Windows, macOS and Linux install too (they have no `NativePlugins`: use `Updater::new()`); iOS opens an ad hoc or enterprise install link. See [App updates](#app-updates). |
+| `updater` | yes | iOS only | no | Signed updates of the installed app, from a Tauri-style update server, or the store page for a store build. Android installs the APK with `updater-install`; Windows, macOS and Linux install too (they have no `NativePlugins`: use `Updater::new()`); iOS opens an ad hoc or enterprise install link. See [App updates](#app-updates). |
 
 The `deep_links` module's metadata builders are not feature-gated and build
 everywhere, including on the server. Only receiving a link needs the
@@ -827,12 +827,15 @@ to send through.
 The `updater` feature updates the installed app the way Tauri's updater does:
 it asks an update server for the latest release, downloads the build for this
 platform, checks it against a minisign public key compiled into the app, and
-installs it. It is for apps distributed outside the stores: a sideloaded APK,
-a desktop installer, an ad hoc or enterprise iOS build.
+installs it: a sideloaded APK, a desktop installer, an ad hoc or enterprise
+iOS build. A build from a store, which may not install itself, still learns
+that an update is out: its release entry names the store page, and
+`install()` opens it.
 
 | Platform | Release file | Installed by | What the user sees |
 | --- | --- | --- | --- |
-| Android | `.apk` | `PackageInstaller` | Nothing on Android 12+ once the app may install apps; otherwise the system's install dialog |
+| Android | `.apk` (with `updater-install`) | `PackageInstaller` | Nothing on Android 12+ once the app may install apps; otherwise the system's install dialog |
+| Any, from a store | The store page (Google Play, the App Store, TestFlight, the Microsoft Store, Flathub) | The store | The store opens on the app |
 | Windows | NSIS `-setup.exe` or `.msi`, bare or in dx's `.zip` | The installer, silently, after the app exits | The app closes and reopens; UAC for a per-machine install |
 | macOS | `.app.tar.gz` | The `.app` is replaced in place | The app closes and reopens |
 | Linux | `.AppImage` (bare or `.tar.gz`), or `.deb` | Renaming over `$APPIMAGE`; `pkexec dpkg -i` | The app closes and reopens; a password prompt for a `.deb` |
@@ -842,7 +845,9 @@ a desktop installer, an ad hoc or enterprise iOS build.
 ### Setup
 
 ```toml
-g3-native-plugins = { version = "0.4", features = ["updater"] }
+# A sideloaded Android build: add `updater-install`, which lets it install
+# the APK. A Play build leaves it off and never declares that permission.
+g3-native-plugins = { version = "0.4", features = ["updater", "updater-install"] }
 ```
 
 ```rust,ignore
@@ -917,9 +922,14 @@ matches what is installed.
 ```
 
 A build looks itself up as `{target}-{arch}-{installer}`, then
-`{target}-{arch}`, then `{target}`. Targets are Tauri's (`android`, `ios`,
+`{target}-{installer}`, then `{target}-{arch}`, then `{target}`, and a store
+entry (`{target}-store`) last. Targets are Tauri's (`android`, `ios`,
 `windows`, `darwin`, `linux`), architectures `aarch64`, `x86_64`, `armv7`,
-`i686`, and installers `apk`, `ipa`, `nsis`, `msi`, `app`, `appimage`, `deb`.
+`i686`, and installers `apk`, `ipa`, `nsis`, `msi`, `app`, `appimage`, `deb`
+and `store`. A store entry needs only a `url`: nothing is downloaded, so
+nothing is signed. An Android build without `updater-install` looks only for
+`android-store`, never at an APK; publish one entry of each and a sideloaded
+build and a Play build of the same app each find theirs.
 A server that picks the build itself can answer with a top-level `url` and
 `signature` instead of `platforms`, or `204 No Content` for "nothing new".
 Endpoints may use `{{target}}`, `{{arch}}` and `{{current_version}}`.
@@ -928,9 +938,10 @@ work.
 
 ### Per platform
 
-- **Android.** The plugin declares `REQUEST_INSTALL_PACKAGES`, which Google
-  Play restricts: **do not enable `updater` in a build that goes to Play.**
-  The first install asks the user to let the app install apps
+- **Android.** `updater-install` adds a Kotlin module declaring
+  `REQUEST_INSTALL_PACKAGES`, which Google Play restricts: **do not enable
+  `updater-install` in a build that goes to Play.** `updater` alone declares
+  nothing beyond `INTERNET`, and opens the Play page. The first install asks the user to let the app install apps
   (`NeedsPermission` opens that screen). From Android 12, an app updating
   itself skips the confirmation dialog when it targets a recent SDK (34 or
   higher on Android 16; the floor rises each release) and declares `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, which the

@@ -1,17 +1,21 @@
-//! Android: downloads through the platform's HTTP stack, installs through
-//! `PackageInstaller`.
+//! Android: downloads through the platform's HTTP stack, and either installs
+//! the APK through `PackageInstaller` (the `updater-install` feature) or opens
+//! the app's store page.
 //!
-//! An app outside Google Play installs its own update like any other APK: it
-//! needs `REQUEST_INSTALL_PACKAGES`, and the user has to have let it install
-//! apps once (Settings, "Install unknown apps"). From Android 12, with
-//! `UPDATE_PACKAGES_WITHOUT_USER_ACTION` and a recent target SDK, an app
-//! updating itself does so without a confirmation dialog; otherwise, or when
-//! the system decides it wants one anyway, Android shows its own. Android
-//! itself refuses an APK signed with a different key or carrying a lower
-//! `versionCode`.
+//! A build from Google Play cannot install APKs, and must not even declare
+//! the permission to, so without `updater-install` it looks only for an
+//! `android-store` entry and opens it. A build distributed outside Play
+//! enables `updater-install`, which adds the `updater_install` Kotlin module
+//! and its permissions. It installs its own update like any other APK: the
+//! user has to have let it install apps once (Settings, "Install unknown
+//! apps"). From Android 12, with `UPDATE_PACKAGES_WITHOUT_USER_ACTION` and a
+//! recent target SDK, an app updating itself does so without a confirmation
+//! dialog; otherwise, or when the system wants one anyway, Android shows its
+//! own. Android itself refuses an APK signed with a different key or carrying
+//! a lower `versionCode`.
 
 use super::engine::{DownloadRequest, Transport};
-use super::release::{Candidate, PlatformKey};
+use super::release::{self, Candidate, PlatformKey};
 use super::{Update, UpdaterState};
 use crate::android_bridge::AndroidPlugin;
 use std::path::{Path, PathBuf};
@@ -27,15 +31,38 @@ unsafe extern "Kotlin" {
     pub type UpdaterPlugin;
 }
 
+/// The installer module, only in a build that may install APKs: its manifest
+/// declares `REQUEST_INSTALL_PACKAGES`. A module of its own, since `dx` takes
+/// one Kotlin block per Rust module.
+#[cfg(feature = "updater-install")]
+mod install_module {
+    #[manganis::ffi("src/android/updater_install")]
+    unsafe extern "Kotlin" {
+        pub type UpdaterInstallPlugin;
+    }
+}
+
 const UPDATER_CLASS: &str = "dev.dioxus.g3_native_plugins.updater.UpdaterPlugin";
 
+#[cfg(feature = "updater-install")]
+const INSTALL_CLASS: &str = "dev.dioxus.g3_native_plugins.updater_install.UpdaterInstallPlugin";
+
 /// What [`Native::install`] got as far as.
+#[cfg_attr(
+    not(feature = "updater-install"),
+    allow(
+        dead_code,
+        reason = "Only a build that installs APKs starts an install or asks for permission."
+    )
+)]
 pub(super) enum Step {
     /// The APK is with the system installer.
     Started,
     /// The user has not let this app install apps; the settings screen is
     /// open.
     NeedsPermission,
+    /// The store page is open.
+    Opened,
 }
 
 /// One Kotlin object for the process: the download runs on one thread while
@@ -43,18 +70,28 @@ pub(super) enum Step {
 /// `state()`.
 static PLUGIN: OnceLock<AndroidPlugin> = OnceLock::new();
 
+#[cfg(feature = "updater-install")]
+static INSTALLER: OnceLock<AndroidPlugin> = OnceLock::new();
+
+fn shared(
+    cell: &'static OnceLock<AndroidPlugin>,
+    class: &str,
+) -> Result<&'static AndroidPlugin, String> {
+    if let Some(plugin) = cell.get() {
+        return Ok(plugin);
+    }
+    let built = AndroidPlugin::new(class)?;
+    Ok(cell.get_or_init(|| built))
+}
+
 pub(super) struct Native {
     plugin: &'static AndroidPlugin,
 }
 
 impl Native {
     pub(super) fn new() -> Result<Self, String> {
-        if let Some(plugin) = PLUGIN.get() {
-            return Ok(Self { plugin });
-        }
-        let built = AndroidPlugin::new(UPDATER_CLASS)?;
         Ok(Self {
-            plugin: PLUGIN.get_or_init(|| built),
+            plugin: shared(&PLUGIN, UPDATER_CLASS)?,
         })
     }
 
@@ -67,7 +104,11 @@ impl Native {
         PlatformKey {
             target: "android",
             arch,
-            installers: &["apk"],
+            installers: if cfg!(feature = "updater-install") {
+                &["apk", release::STORE]
+            } else {
+                &[release::STORE]
+            },
         }
     }
 
@@ -78,50 +119,40 @@ impl Native {
             .ok_or_else(|| "The platform did not report a data directory".to_string())
     }
 
+    /// The APK to download, or `None` for a store page.
     pub(super) fn download_url(candidate: &Candidate) -> Result<Option<String>, String> {
-        Ok(Some(candidate.url.clone()))
+        let store = candidate.installer.as_deref() == Some(release::STORE)
+            || release::is_store_link(&candidate.url);
+        if store {
+            return Ok(None);
+        }
+        if cfg!(feature = "updater-install") {
+            Ok(Some(candidate.url.clone()))
+        } else {
+            Err("This build updates from its store, and the release names an APK".to_string())
+        }
     }
 
     pub(super) fn install(
         &self,
         file: Option<&Path>,
-        _candidate: &Candidate,
+        candidate: &Candidate,
     ) -> Result<Step, String> {
-        let file = file.ok_or("There is no downloaded APK to install")?;
-        let allowed = self.plugin.call_string("canInstallFromRust")?;
-        if allowed.as_deref() != Some("true") {
-            self.plugin.call_unit("openInstallSettingsFromRust")?;
-            return Ok(Step::NeedsPermission);
+        if Self::download_url(candidate)?.is_none() {
+            let reported = self
+                .plugin
+                .call_string_str("openUrlFromRust", &candidate.url)?
+                .ok_or("Opening the store reported nothing")?;
+            return error_of(&reported).map_or(Ok(Step::Opened), Err);
         }
-        let reported = self
-            .plugin
-            .call_string_str("installFromRust", &file.to_string_lossy())?
-            .ok_or("The installer reported nothing")?;
-        error_of(&reported).map_or(Ok(Step::Started), Err)
+        let file = file.ok_or("There is no downloaded APK to install")?;
+        install_apk(file)
     }
 
     /// Where the system installer has got. Success never reports: Android
     /// stops this process to replace it.
     pub(super) fn install_progress(update: &Update) -> Option<UpdaterState> {
-        let reported = Self::new()
-            .ok()?
-            .plugin
-            .call_string("installStatusFromRust")
-            .ok()??;
-        let value: serde_json::Value = serde_json::from_str(&reported).ok()?;
-        match value.get("status").and_then(|status| status.as_str())? {
-            // Cancelled in the system dialog: the APK is still good, so the
-            // app can offer the install again.
-            "aborted" => Some(UpdaterState::Ready(update.clone())),
-            "failed" => Some(UpdaterState::Failed(
-                value
-                    .get("message")
-                    .and_then(|message| message.as_str())
-                    .unwrap_or("The system installer refused the update")
-                    .to_string(),
-            )),
-            _ => None,
-        }
+        install_status(update)
     }
 
     pub(super) fn clean_up() {
@@ -129,6 +160,52 @@ impl Native {
             let _ = std::fs::remove_dir_all(directory.join("download"));
         }
     }
+}
+
+#[cfg(feature = "updater-install")]
+fn install_apk(file: &Path) -> Result<Step, String> {
+    let installer = shared(&INSTALLER, INSTALL_CLASS)?;
+    let allowed = installer.call_string("canInstallFromRust")?;
+    if allowed.as_deref() != Some("true") {
+        installer.call_unit("openInstallSettingsFromRust")?;
+        return Ok(Step::NeedsPermission);
+    }
+    let reported = installer
+        .call_string_str("installFromRust", &file.to_string_lossy())?
+        .ok_or("The installer reported nothing")?;
+    error_of(&reported).map_or(Ok(Step::Started), Err)
+}
+
+#[cfg(not(feature = "updater-install"))]
+fn install_apk(_file: &Path) -> Result<Step, String> {
+    Err("This build cannot install APKs: enable updater-install".to_string())
+}
+
+#[cfg(feature = "updater-install")]
+fn install_status(update: &Update) -> Option<UpdaterState> {
+    let reported = shared(&INSTALLER, INSTALL_CLASS)
+        .ok()?
+        .call_string("installStatusFromRust")
+        .ok()??;
+    let value: serde_json::Value = serde_json::from_str(&reported).ok()?;
+    match value.get("status").and_then(|status| status.as_str())? {
+        // Cancelled in the system dialog: the APK is still good, so the app
+        // can offer the install again.
+        "aborted" => Some(UpdaterState::Ready(update.clone())),
+        "failed" => Some(UpdaterState::Failed(
+            value
+                .get("message")
+                .and_then(|message| message.as_str())
+                .unwrap_or("The system installer refused the update")
+                .to_string(),
+        )),
+        _ => None,
+    }
+}
+
+#[cfg(not(feature = "updater-install"))]
+fn install_status(_update: &Update) -> Option<UpdaterState> {
+    None
 }
 
 fn error_of(reported: &str) -> Option<String> {

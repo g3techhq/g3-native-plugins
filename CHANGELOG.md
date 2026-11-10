@@ -18,10 +18,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   target, Windows and Linux included. Removed with the content updater:
   `Updater::launch`, `notify_ready`, `apply_now`, `reset`, `bundle_dir`,
   `resolve_asset`, `bundle_content_type`, `UpdaterConfig::embedded_version`
-  and `runtime_version`; `configure` and `install` are new. The Android
-  module now declares `REQUEST_INSTALL_PACKAGES` and
-  `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, so do not enable `updater` in a
-  Google Play build.
+  and `runtime_version`; `configure` and `install` are new. A release entry
+  may name a store page instead (`{target}-store`): a store build learns the
+  update is out and `install()` opens the store, with nothing downloaded.
+  Installing an APK on Android is the new `updater-install` feature, whose own
+  Kotlin module declares `REQUEST_INSTALL_PACKAGES` and
+  `UPDATE_PACKAGES_WITHOUT_USER_ACTION`; leave it off in a Google Play build.
 
 - Safe area: the README and matrix say plainly that the `--g3-safe-area-*`
   variables are set only on Android; iOS and the web leave them unset and

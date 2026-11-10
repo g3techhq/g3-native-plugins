@@ -3,7 +3,7 @@
 //! OS-specific installer below.
 
 use super::engine::{DownloadRequest, Transport};
-use super::release::{Candidate, PlatformKey};
+use super::release::{self, Candidate, PlatformKey};
 use super::{Update, UpdaterState};
 use std::fs;
 use std::io::{Read, Write};
@@ -18,9 +18,9 @@ mod os;
 #[path = "desktop_unix.rs"]
 mod os;
 
-/// What [`Native::install`] got as far as. Desktop installs exit the process
-/// on success, so only an error ever comes back; the type is shared with the
-/// mobile platforms, where an install continues after the call.
+/// What [`Native::install`] got as far as. An install exits the process on
+/// success, so only opening a store page comes back; the type is shared with
+/// the mobile platforms, where an install continues after the call.
 #[allow(
     dead_code,
     reason = "Desktop never asks for a permission; the variant is part of the shared contract."
@@ -28,6 +28,7 @@ mod os;
 pub(super) enum Step {
     Started,
     NeedsPermission,
+    Opened,
 }
 
 pub(super) struct Native {
@@ -77,17 +78,25 @@ impl Native {
         data_dir()
     }
 
+    /// A store page (the Microsoft Store, the Mac App Store, Flathub) has
+    /// nothing to download: it is opened.
     pub(super) fn download_url(candidate: &Candidate) -> Result<Option<String>, String> {
-        Ok(Some(candidate.url.clone()))
+        let store = candidate.installer.as_deref() == Some(release::STORE)
+            || release::is_store_link(&candidate.url);
+        Ok((!store).then(|| candidate.url.clone()))
     }
 
-    /// Unpack the verified download and install it. Exits the process on
-    /// success.
+    /// Unpack the verified download and install it, which exits the process
+    /// on success; or open a store page.
     pub(super) fn install(
         &self,
         file: Option<&Path>,
         candidate: &Candidate,
     ) -> Result<Step, String> {
+        if Self::download_url(candidate)?.is_none() {
+            os::open_url(&candidate.url)?;
+            return Ok(Step::Opened);
+        }
         let file = file.ok_or("There is no downloaded update to install")?;
         let unpacked = data_dir()?.join("unpacked");
         let payload = unpack(file, &unpacked)?;

@@ -133,6 +133,10 @@ pub struct Update {
     pub notes: Option<String>,
     /// Publication date as the server wrote it, conventionally RFC 3339.
     pub pub_date: Option<String>,
+    /// The update is in a store (App Store, TestFlight, Google Play, the
+    /// Microsoft Store...): [`Updater::install`] opens its page, with nothing
+    /// to download first.
+    pub store: bool,
 }
 
 /// How far a download has got.
@@ -155,7 +159,8 @@ pub enum UpdaterState {
     /// The server has nothing newer than what is running.
     UpToDate,
     /// A newer release is on offer; fetch it with
-    /// [`Updater::start_download`].
+    /// [`Updater::start_download`], or, when [`Update::store`] is set, open
+    /// its store page with [`Updater::install`].
     Available(Update),
     /// The release is downloading.
     Downloading {
@@ -295,12 +300,19 @@ impl Updater {
         Self::spawn(move || {
             let outcome = (|| {
                 let native = platform::Native::new()?;
-                engine::check(
+                let found = engine::check(
                     &config,
                     &platform::Native::key(),
                     &native,
                     &native.data_dir()?,
-                )
+                )?;
+                found
+                    .map(|mut candidate| {
+                        candidate.update.store =
+                            platform::Native::download_url(&candidate)?.is_none();
+                        Ok(candidate)
+                    })
+                    .transpose()
             })();
             shared::with(|shared| {
                 shared.busy = false;
@@ -370,25 +382,28 @@ impl Updater {
         })
     }
 
-    /// Install the downloaded release.
+    /// Install the downloaded release, or open the store page of one in a
+    /// store ([`Update::store`]), which needs no download first and leaves the
+    /// state at [`UpdaterState::Available`].
     ///
-    /// - **Android**: hands the APK to the system installer. Android 12 and
-    ///   later install it without asking when the app declares
-    ///   `UPDATE_PACKAGES_WITHOUT_USER_ACTION` (this plugin does) and targets a
-    ///   recent SDK; otherwise the system asks the user. The first time, the
-    ///   user must allow this app to install apps:
-    ///   [`UpdaterState::NeedsPermission`] opens that screen.
+    /// - **Android** (with the `updater-install` feature): hands the APK to the
+    ///   system installer. Android 12 and later install it without asking
+    ///   when the app declares `UPDATE_PACKAGES_WITHOUT_USER_ACTION` (that
+    ///   feature does) and targets a recent SDK; otherwise the system asks
+    ///   the user. The first time, the user must allow this app to install
+    ///   apps: [`UpdaterState::NeedsPermission`] opens that screen.
     /// - **Windows, macOS, Linux**: replaces the app and starts the new
     ///   version. On success this **exits the process**, so save anything that
     ///   needs saving first.
     /// - **iOS**: opens the install link, and iOS takes over.
     pub fn install(&mut self) -> Result<(), String> {
         let (candidate, file) = shared::with(|shared| {
-            let file = shared
-                .downloaded
-                .clone()
-                .ok_or("There is no downloaded update: download one first")?;
             let candidate = shared.candidate.clone().ok_or("There is no update")?;
+            let file = match shared.downloaded.clone() {
+                Some(file) => file,
+                None if candidate.update.store => None,
+                None => return Err("There is no downloaded update: download one first".to_string()),
+            };
             Ok::<_, String>((candidate, file))
         })?;
         let update = candidate.update.clone();
@@ -400,6 +415,9 @@ impl Updater {
                 shared.busy = false;
                 shared.state = match outcome {
                     Ok(platform::Step::Started) => UpdaterState::Installing(update),
+                    // The store is on screen; the update is still on offer
+                    // when the user comes back without taking it.
+                    Ok(platform::Step::Opened) => UpdaterState::Available(update),
                     Ok(platform::Step::NeedsPermission) => UpdaterState::NeedsPermission(update),
                     Err(error) => UpdaterState::Failed(error),
                 };

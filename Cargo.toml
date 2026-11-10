@@ -80,6 +80,10 @@ push-notifications = ["notifications"]
 safe-area = []
 storage = []
 updater = ["dep:minisign-verify", "dep:semver", "dep:flate2", "dep:tar", "dep:ureq", "dep:zip"]
+# Android: install a downloaded APK. Adds REQUEST_INSTALL_PACKAGES, which Google
+# Play restricts, so a Play build leaves it off and updates through its store
+# page. No effect elsewhere: desktop always installs, iOS never can.
+updater-install = ["updater"]
 
 [patch.crates-io]
 # Dioxus fork (upstream main + g3 commits; see G3-PATCHES.md there). Local

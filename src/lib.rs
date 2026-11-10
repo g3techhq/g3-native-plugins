@@ -1065,7 +1065,11 @@ mod tests {
         let kotlin = include_str!(
             "android/updater/src/main/kotlin/dev/dioxus/g3_native_plugins/updater/UpdaterPlugin.kt",
         );
+        let installer = include_str!(
+            "android/updater_install/src/main/kotlin/dev/dioxus/g3_native_plugins/updater_install/UpdaterInstallPlugin.kt",
+        );
         let manifest = include_str!("android/updater/src/main/AndroidManifest.xml");
+        let install_manifest = include_str!("android/updater_install/src/main/AndroidManifest.xml");
         let swift = include_str!("ios/Sources/UpdaterPlugin.swift");
         let gradle = include_str!("android/updater/build.gradle.kts");
         // Every download is checked before it is returned, and a failure
@@ -1079,27 +1083,46 @@ mod tests {
         assert!(updater.contains("let Some(url) = platform::Native::download_url(&candidate)?"));
         // Network and installing happen off the Dioxus thread.
         assert!(updater.contains("std::thread::Builder::new()"));
-        // The Rust ↔ Kotlin calls, by name.
+        // The Rust ↔ Kotlin calls, by name, in the module that has each.
         for method in [
             "dataDirectoryFromRust",
             "downloadFromRust",
+            "openUrlFromRust",
+        ] {
+            assert!(android.contains(&format!("\"{method}\"")), "{method}");
+            assert!(kotlin.contains(&format!("fun {method}(")), "{method}");
+        }
+        for method in [
             "canInstallFromRust",
             "openInstallSettingsFromRust",
             "installFromRust",
             "installStatusFromRust",
         ] {
             assert!(android.contains(&format!("\"{method}\"")), "{method}");
-            assert!(kotlin.contains(&format!("fun {method}(")), "{method}");
+            assert!(installer.contains(&format!("fun {method}(")), "{method}");
         }
         assert!(android.contains("format!(\"{}.part\""));
         assert!(kotlin.contains("File(destination.path + \".part\")"));
         assert!(kotlin.contains("File(destination.path + \".length\")"));
-        assert!(kotlin.contains("USER_ACTION_NOT_REQUIRED"));
-        assert!(kotlin.contains("STATUS_PENDING_USER_ACTION"));
-        assert!(kotlin.contains("\"aborted\""));
+        assert!(installer.contains("USER_ACTION_NOT_REQUIRED"));
+        assert!(installer.contains("STATUS_PENDING_USER_ACTION"));
+        assert!(installer.contains("\"aborted\""));
         assert!(android.contains("\"aborted\" => Some(UpdaterState::Ready"));
-        assert!(manifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
-        assert!(manifest.contains("android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"));
+        // A Play build gets the updater without the install permission: only
+        // the separate module, behind `updater-install`, declares it.
+        assert!(!manifest.contains("REQUEST_INSTALL_PACKAGES"));
+        assert!(install_manifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
+        assert!(
+            install_manifest.contains("android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION")
+        );
+        let gated = android
+            .find("#[cfg(feature = \"updater-install\")]\nmod install_module")
+            .expect("the installer module is behind updater-install");
+        let declared = android
+            .find("#[manganis::ffi(\"src/android/updater_install\")]")
+            .unwrap();
+        assert!(gated < declared);
+        assert!(!kotlin.contains("PackageInstaller"));
         // The Rust ↔ Swift calls, by name.
         for method in [
             "dataDirectoryFromRust",
@@ -1273,13 +1296,18 @@ mod tests {
                 .and_then(|name| name.to_str())
                 .expect("module name")
                 .to_owned();
-            // A plugin is one file, or a folder whose Android half is its own.
-            let source = std::fs::read_to_string(root.join(format!("src/{module}.rs")))
-                .or_else(|_| std::fs::read_to_string(root.join(format!("src/{module}/android.rs"))))
-                .unwrap_or_else(|error| panic!("{module} has no Rust source: {error}"));
+            // Whichever Rust file declares the module, and of the classes it
+            // names, those in the module's own package (the updater's file
+            // names both of its modules' classes).
+            let source = rust_source_declaring(&root.join("src"), &module)
+                .unwrap_or_else(|| panic!("{module} has no Rust source declaring it"));
             let rules = std::fs::read_to_string(directory.join("consumer-rules.pro"))
                 .unwrap_or_else(|error| panic!("{module} ships no consumer-rules.pro: {error}"));
-            let classes = jni_classes(production_source(&source));
+            let package = format!("dev.dioxus.g3_native_plugins.{module}.");
+            let classes: Vec<String> = jni_classes(production_source(&source))
+                .into_iter()
+                .filter(|class| class.starts_with(&package))
+                .collect();
             assert!(
                 !classes.is_empty(),
                 "{module} names no plugin class, so this test cannot check its keep rule",
@@ -1297,6 +1325,25 @@ mod tests {
             }
             modules += 1;
         }
-        assert_eq!(modules, 16, "a plugin module was added or removed");
+        assert_eq!(modules, 17, "a plugin module was added or removed");
+    }
+
+    /// The `.rs` file under `directory` that declares the Kotlin module.
+    fn rust_source_declaring(directory: &std::path::Path, module: &str) -> Option<String> {
+        let declaration = format!("manganis::ffi(\"src/android/{module}\")");
+        for entry in std::fs::read_dir(directory).ok()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = rust_source_declaring(&path, module) {
+                    return Some(found);
+                }
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                let source = std::fs::read_to_string(&path).ok()?;
+                if source.contains(&declaration) {
+                    return Some(source);
+                }
+            }
+        }
+        None
     }
 }

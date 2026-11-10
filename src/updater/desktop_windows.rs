@@ -17,7 +17,19 @@ use std::path::Path;
 use std::process::Command;
 
 pub(super) fn installers() -> &'static [&'static str] {
-    &["nsis", "msi"]
+    &["nsis", "msi", super::release::STORE]
+}
+
+/// Hand a store link to whatever Windows has registered for it.
+/// `url.dll`'s handler takes the URL as one argument, with none of the
+/// command-line parsing `cmd /c start` would apply to an `&` in it.
+pub(super) fn open_url(url: &str) -> Result<(), String> {
+    Command::new("rundll32.exe")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to open the store: {error}"))
 }
 
 pub(super) fn clean_up() {}

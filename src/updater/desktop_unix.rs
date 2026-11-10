@@ -14,12 +14,26 @@ use std::process::Command;
 
 pub(super) fn installers() -> &'static [&'static str] {
     if cfg!(target_os = "macos") {
-        &["app"]
+        &["app", super::release::STORE]
     } else if std::env::var_os("APPIMAGE").is_some() {
-        &["appimage"]
+        &["appimage", super::release::STORE]
     } else {
-        &["deb"]
+        &["deb", super::release::STORE]
     }
+}
+
+/// Hand a store link to the desktop's own handler.
+pub(super) fn open_url(url: &str) -> Result<(), String> {
+    let opener = if cfg!(target_os = "macos") {
+        "/usr/bin/open"
+    } else {
+        "xdg-open"
+    };
+    Command::new(opener)
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to open the store: {error}"))
 }
 
 /// The `.app` bundle this executable runs from.

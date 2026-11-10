@@ -48,6 +48,34 @@ pub(super) struct Candidate {
     pub installer: Option<String>,
 }
 
+/// The installer name of an entry that is a store page: opened, not
+/// downloaded.
+pub(super) const STORE: &str = "store";
+
+/// Whether a URL is a store page this platform opens rather than downloads:
+/// the App Store and TestFlight, Google Play, the Microsoft Store, Flathub
+/// and Snapcraft.
+pub(super) fn is_store_link(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    [
+        "https://apps.apple.com/",
+        "https://testflight.apple.com/",
+        "itms-apps://",
+        "itms-beta://",
+        "macappstore://",
+        "https://play.google.com/",
+        "market://",
+        "https://apps.microsoft.com/",
+        "ms-windows-store://",
+        "https://flathub.org/",
+        "https://snapcraft.io/",
+        "appstream://",
+        "snap://",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix))
+}
+
 /// Where this build looks itself up in a release's `platforms` table.
 pub(super) struct PlatformKey<'a> {
     /// `android`, `ios`, `windows`, `darwin` or `linux`: Tauri's names.
@@ -88,15 +116,33 @@ pub(super) fn choose(
         return Ok(None);
     }
     let base = format!("{}-{}", key.target, key.arch);
-    // Most specific first: an installer this install can take, then the
-    // architecture, then the bare target.
-    let mut keys: Vec<(String, Option<&str>)> = key
+    // Most specific first: each installer this install can take, for this
+    // architecture and then for any; then the architecture, then the bare
+    // target; and a store page last, so a build that can install a download
+    // takes one over sending its user to a store.
+    let mut keys: Vec<(String, Option<&str>)> = Vec::new();
+    for installer in key
         .installers
         .iter()
-        .map(|installer| (format!("{base}-{installer}"), Some(*installer)))
-        .collect();
-    keys.push((base.clone(), None));
-    keys.push((key.target.to_string(), None));
+        .copied()
+        .filter(|installer| *installer != STORE)
+    {
+        keys.push((format!("{base}-{installer}"), Some(installer)));
+        keys.push((format!("{}-{installer}", key.target), Some(installer)));
+    }
+    // An entry without an installer is a file to download. A build that can
+    // only open its store (a Play build, which may not install APKs) must
+    // not pick one up.
+    let downloads =
+        key.installers.is_empty() || key.installers.iter().any(|installer| *installer != STORE);
+    if downloads {
+        keys.push((base.clone(), None));
+        keys.push((key.target.to_string(), None));
+    }
+    if key.installers.contains(&STORE) {
+        keys.push((format!("{base}-{STORE}"), Some(STORE)));
+        keys.push((format!("{}-{STORE}", key.target), Some(STORE)));
+    }
     let found = keys.iter().find_map(|(name, installer)| {
         release
             .platforms
@@ -106,11 +152,15 @@ pub(super) fn choose(
     let (url, signature, installer) = match found {
         Some((platform, installer)) => (platform.url, platform.signature, installer),
         None => match &release.url {
-            Some(url) => (url.clone(), release.signature.clone(), None),
-            None => {
+            Some(url) if downloads => (url.clone(), release.signature.clone(), None),
+            _ => {
+                let looked = keys
+                    .iter()
+                    .map(|(name, _)| name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 return Err(format!(
-                    "The update response has no build for {base} or {}",
-                    key.target
+                    "The update response has no build for this app: looked for {looked}"
                 ));
             }
         },
@@ -121,6 +171,8 @@ pub(super) fn choose(
             current_version: current_version.to_string(),
             notes: release.notes,
             pub_date: release.pub_date,
+            // Decided by the platform, which knows its stores' links.
+            store: false,
         },
         url,
         signature: signature.filter(|signature| !signature.trim().is_empty()),
@@ -352,6 +404,40 @@ pub(super) mod tests {
             ),
             "https://u.test/android-aarch64/1.2.0"
         );
+    }
+
+    #[test]
+    fn a_store_build_finds_the_store_page_and_never_a_download() {
+        let body = release(serde_json::json!({
+            "android": { "url": "https://x.test/Tawny.apk", "signature": "s" },
+            "android-store": { "url": "https://play.google.com/store/apps/details?id=x" },
+        }));
+        let play = PlatformKey {
+            target: "android",
+            arch: "aarch64",
+            installers: &[STORE],
+        };
+        let candidate = choose(&body, "1.0.0", &play).unwrap().unwrap();
+        assert!(candidate.url.starts_with("https://play.google.com/"));
+        assert_eq!(candidate.installer.as_deref(), Some(STORE));
+        assert_eq!(candidate.signature, None);
+        // A sideloaded build of the same app takes the APK.
+        let sideloaded = PlatformKey {
+            target: "android",
+            arch: "aarch64",
+            installers: &["apk", STORE],
+        };
+        let candidate = choose(&body, "1.0.0", &sideloaded).unwrap().unwrap();
+        assert_eq!(candidate.url, "https://x.test/Tawny.apk");
+        // A store build with no store entry has nothing, even with an APK there.
+        let body = release(serde_json::json!({
+            "android": { "url": "https://x.test/Tawny.apk", "signature": "s" },
+        }));
+        let error = choose(&body, "1.0.0", &play).unwrap_err();
+        assert!(error.contains("android-store"), "{error}");
+        assert!(is_store_link("market://details?id=x"));
+        assert!(is_store_link("https://apps.apple.com/app/id1"));
+        assert!(!is_store_link("https://x.test/Tawny.apk"));
     }
 
     #[test]
