@@ -34,8 +34,8 @@ pub struct ExternalUrl {
 /// Browser external-navigation support.
 pub struct ExternalUrl;
 
-#[cfg(target_os = "macos")]
-/// An inert external-URL facade used by the macOS smoke-test build.
+#[cfg(desktop)]
+/// An inert external-URL facade used by desktop builds.
 pub struct ExternalUrl;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -76,18 +76,18 @@ impl ExternalUrl {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(desktop)]
 impl ExternalUrl {
     pub(crate) fn new() -> Self {
         Self
     }
 
-    /// No-op preparation for the macOS smoke-test build.
+    /// No-op preparation for desktop builds.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
 
-    /// No-op URL request for the macOS smoke-test build.
+    /// No-op URL request for desktop builds.
     pub fn open(&mut self, _url: &str) -> Result<(), String> {
         Ok(())
     }

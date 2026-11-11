@@ -50,7 +50,7 @@ pub const NATIVE_BACK_EVENT: &str = "g3nativeback";
 /// anywhere to go back to, and a permanently enabled handler would leave the
 /// user unable to leave on Android and would swallow edge swipes on iOS.
 ///
-/// On the web the browser owns back, and macOS has no equivalent gesture, so
+/// On the web the browser owns back, and desktop has no equivalent gesture, so
 /// both are no-ops and callers need no cfg of their own.
 #[cfg(target_os = "android")]
 pub struct BackButton {
@@ -65,7 +65,7 @@ pub struct BackButton {
     intercepting: bool,
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 /// An inert back-button facade for targets without a native back gesture.
 pub struct BackButton {
     intercepting: bool,
@@ -198,7 +198,7 @@ impl BackButton {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl BackButton {
     /// Create the inert system-back facade used where nothing raises the event.
     pub fn new() -> Self {
@@ -212,7 +212,7 @@ impl BackButton {
         Ok(())
     }
 
-    /// Recorded but inert: the browser owns back on the web, and macOS has no
+    /// Recorded but inert: the browser owns back on the web, and desktop has no
     /// system back gesture to take.
     pub fn set_intercepting(&mut self, intercepting: bool) -> Result<(), String> {
         self.intercepting = intercepting;
@@ -234,7 +234,7 @@ impl BackButton {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl Default for BackButton {
     fn default() -> Self {

@@ -145,7 +145,7 @@ pub enum LocationState {
 ///
 /// The web build is inert rather than wrapping the browser Geolocation API: a
 /// page can call `navigator.geolocation` itself, and doing it here would put a
-/// permission prompt behind an API shaped for native asynchrony. macOS is inert
+/// permission prompt behind an API shaped for native asynchrony. Desktop is inert
 /// too. Callers need no cfg of their own.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub struct Geolocation {
@@ -153,7 +153,7 @@ pub struct Geolocation {
 }
 
 /// The inert location facade: see the native [`Geolocation`] for the contract.
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 pub struct Geolocation;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -284,7 +284,7 @@ impl Geolocation {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl Geolocation {
     pub(crate) fn new() -> Self {
         Self

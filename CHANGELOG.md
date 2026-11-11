@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Desktop gets `NativePlugins`: Windows and Linux had none, so a call site
+  shared with mobile did not compile there, and macOS had inert stubs. Every
+  desktop now has the same struct; its plugins stay inert apart from those
+  below.
+- `clipboard` works on desktop. `copy_to_clipboard` copies on Windows, macOS
+  and Linux (through arboard), where the macOS build used to report success
+  without copying. `share` opens the Windows Share sheet for the active
+  window, and copies on macOS and Linux.
+- `Clipboard::has_share_sheet()`, on every target, says whether `share`
+  opens a sheet or copies, so an app can tell the user the text was copied.
+  The web answers from the Web Share API, which desktop Firefox lacks.
+
 ### Fixed
 
 - Android media: hold CPU and Wi-Fi playback locks through buffering so

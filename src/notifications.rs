@@ -2,7 +2,7 @@
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 use crate::permissions::PermissionState;
 use serde::{Deserialize, Serialize};
@@ -374,7 +374,7 @@ pub struct Action {
 /// geolocation, the answer is read by polling
 /// [`check_permissions`](Notifications::check_permissions).
 ///
-/// The web and macOS builds are inert, so callers need no cfg of their own.
+/// The web and desktop builds are inert, so callers need no cfg of their own.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub struct Notifications {
     plugin: Option<NotificationsHandle>,
@@ -382,7 +382,7 @@ pub struct Notifications {
 
 /// The inert notifications facade: see the native [`Notifications`] for the
 /// contract.
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 pub struct Notifications;
 
 /// The native side answers a command with nothing, or with a JSON object
@@ -653,7 +653,7 @@ impl Notifications {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl Notifications {
     /// Create the inert facade.
     pub fn new() -> Self {
@@ -745,7 +745,7 @@ impl Notifications {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl Default for Notifications {
     fn default() -> Self {

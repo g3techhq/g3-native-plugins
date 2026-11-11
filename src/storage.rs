@@ -75,7 +75,7 @@ unsafe extern "Swift" {
 /// unlocked the device at least once, but never while it has never been
 /// unlocked.
 ///
-/// # macOS returns an error
+/// # Desktop returns an error
 ///
 /// Every other plugin here compiles to an inert no-op where a platform is not
 /// implemented, because nothing happening is an acceptable outcome for a share
@@ -94,7 +94,7 @@ pub struct KeyValueStore;
 
 /// The unimplemented store: every call reports an error rather than pretending
 /// to work. See the native [`KeyValueStore`].
-#[cfg(target_os = "macos")]
+#[cfg(desktop)]
 pub struct KeyValueStore;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -165,7 +165,7 @@ impl KeyValueStore {
     /// Android waits for `SharedPreferences.commit` and reports a failed disk
     /// write; iOS uses the synchronous Keychain result. Use this for small retry
     /// checkpoints before acknowledging external work. It can block the caller.
-    /// Web and macOS return an error; this method never writes browser storage.
+    /// Web and desktop return an error; this method never writes browser storage.
     pub fn set_durable(&mut self, key: &str, value: &str) -> Result<(), String> {
         #[cfg(target_os = "android")]
         {
@@ -307,7 +307,7 @@ pub fn clear_storage() -> Result<(), String> {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl Default for KeyValueStore {
     fn default() -> Self {
@@ -400,7 +400,7 @@ impl KeyValueStore {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(desktop)]
 impl KeyValueStore {
     /// Construct without touching the platform; the store opens on first use.
     ///
@@ -412,7 +412,7 @@ impl KeyValueStore {
     }
 
     fn unimplemented<T>() -> Result<T, String> {
-        Err("Secure storage is not implemented on macOS".to_string())
+        Err("Secure storage is not implemented on desktop".to_string())
     }
 
     /// Reports an error: there is no store here to open.

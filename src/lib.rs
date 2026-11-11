@@ -81,7 +81,7 @@ pub mod permissions;
         target_arch = "wasm32",
         target_os = "android",
         target_os = "ios",
-        target_os = "macos"
+        desktop
     )
 ))]
 #[allow(
@@ -98,7 +98,7 @@ pub use permissions::PermissionState;
 cfg_if::cfg_if! {
     if #[cfg(feature = "clipboard")] { mod clipboard;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use clipboard::Clipboard; }
 }
 cfg_if::cfg_if! {
@@ -109,7 +109,7 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "auth")] { mod auth;
 
-    #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use auth::Auth; }
 }
 cfg_if::cfg_if! {
@@ -117,7 +117,7 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use back_button::NATIVE_BACK_EVENT;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use back_button::BackButton; }
 }
 cfg_if::cfg_if! {
@@ -125,13 +125,13 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use camera_microphone::CapturePermissions;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use camera_microphone::CameraMicrophone; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "external-url")] { mod external_url;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use external_url::ExternalUrl; }
 }
 cfg_if::cfg_if! {
@@ -139,7 +139,7 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use geolocation::{Coordinates, LocationState, PermissionStatus, Position, PositionOptions};
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use geolocation::Geolocation; }
 }
 cfg_if::cfg_if! {
@@ -147,13 +147,13 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use in_app_purchases::{AttributedEntitlement, Entitlement, ExternalContentLinkToken, Product, ProductKind, PurchaseState, SubscriptionOffer, SubscriptionPeriod};
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use in_app_purchases::InAppPurchases; }
 }
 cfg_if::cfg_if! {
     if #[cfg(feature = "media")] { mod media;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use media::Media;
     }
 }
@@ -162,7 +162,7 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use notifications::{Action, ActionType, Channel, DeliveredNotification, Importance, Notification, NotificationEvent, PendingNotification, Schedule, ScheduleInterval, Visibility, TAP_ACTION};
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use notifications::Notifications; }
 }
 cfg_if::cfg_if! {
@@ -170,7 +170,7 @@ cfg_if::cfg_if! {
 
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use push_notifications::{FirebaseOptions, PushEvent, PushService, PushToken};
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use push_notifications::PushNotifications; }
 }
 cfg_if::cfg_if! {
@@ -181,7 +181,7 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "storage")] { mod storage;
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "ios", desktop))]
     #[allow(unused_imports, reason = "The shared facade exposes imports used only by selected platform features.")] pub use storage::KeyValueStore;
 
     pub use storage::clear_storage; }
@@ -189,8 +189,8 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "updater")] { mod updater;
 
-    // Every target, Windows and Linux included: they have no NativePlugins,
-    // and an app there makes its own handle.
+    // Every target. `Updater::new()` is the same process-wide updater as
+    // `NativePlugins::updater`, for code that runs before the provider.
     pub use updater::{DownloadProgress, Update, Updater, UpdaterConfig, UpdaterState}; }
 }
 use dioxus::prelude::*;
@@ -216,7 +216,7 @@ use dioxus::prelude::*;
         target_arch = "wasm32",
         target_os = "android",
         target_os = "ios",
-        target_os = "macos"
+        desktop
     )
 ))]
 #[allow(
@@ -229,7 +229,7 @@ use dioxus_signals::Signal;
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 #[derive(Clone, Copy)]
 /// Reactive handles for every enabled native plugin.
@@ -243,7 +243,7 @@ pub struct NativePlugins {
     pub appearance: Signal<SystemAppearance>,
     #[cfg(all(
         feature = "auth",
-        any(target_os = "android", target_os = "ios", target_os = "macos")
+        any(target_os = "android", target_os = "ios", desktop)
     ))]
     /// Native Apple or Google authentication, depending on the target.
     pub auth: Signal<Auth>,
@@ -251,14 +251,14 @@ pub struct NativePlugins {
     /// need no cfg of their own.
     #[cfg(feature = "back-button")]
     pub back_button: Signal<BackButton>,
-    /// Available on every target: the web and macOS builds are inert, so
+    /// Available on every target: the web and desktop builds are inert, so
     /// callers need no cfg of their own.
     #[cfg(feature = "camera-microphone")]
     pub camera_microphone: Signal<CameraMicrophone>,
     #[cfg(feature = "clipboard")]
     /// Clipboard copying and the platform share sheet.
     pub clipboard: Signal<Clipboard>,
-    /// Available on every target: the web and macOS builds are inert, so
+    /// Available on every target: the web and desktop builds are inert, so
     /// callers need no cfg of their own.
     #[cfg(feature = "deep-links")]
     pub deep_links: Signal<DeepLinks>,
@@ -268,31 +268,31 @@ pub struct NativePlugins {
             target_arch = "wasm32",
             target_os = "android",
             target_os = "ios",
-            target_os = "macos"
+            desktop
         )
     ))]
     /// Opens a URL outside the app on supported targets.
     pub external_url: Signal<ExternalUrl>,
-    /// Available on every target: the web and macOS builds are inert, so
+    /// Available on every target: the web and desktop builds are inert, so
     /// callers need no cfg of their own.
     #[cfg(feature = "geolocation")]
     pub geolocation: Signal<Geolocation>,
-    /// Available on every target: the web and macOS builds are inert, so
+    /// Available on every target: the web and desktop builds are inert, so
     /// callers need no cfg of their own.
     #[cfg(feature = "in-app-purchases")]
     pub in_app_purchases: Signal<InAppPurchases>,
     #[cfg(feature = "media")]
     /// Background media playback, orientation, and picture-in-picture support.
     pub media: Signal<Media>,
-    /// Local notifications. Available on every target: the web and macOS
+    /// Local notifications. Available on every target: the web and desktop
     /// builds are inert, so callers need no cfg of their own.
     #[cfg(feature = "notifications")]
     pub notifications: Signal<Notifications>,
     /// Remote push through APNs and FCM. Available on every target: the web
-    /// and macOS builds are inert, so callers need no cfg of their own.
+    /// and desktop builds are inert, so callers need no cfg of their own.
     #[cfg(feature = "push-notifications")]
     pub push_notifications: Signal<PushNotifications>,
-    /// Available on every target, but unlike the others the macOS build reports
+    /// Available on every target, but unlike the others the desktop build reports
     /// an error rather than doing nothing: a store that silently discards is
     /// worse than one that says it cannot help.
     #[cfg(feature = "storage")]
@@ -312,7 +312,7 @@ pub struct NativePlugins {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl NativePlugins {
     /// Creates reactive handles for every plugin enabled for this target.
@@ -322,7 +322,7 @@ impl NativePlugins {
             appearance: Signal::new(SystemAppearance::new()),
             #[cfg(all(
                 feature = "auth",
-                any(target_os = "android", target_os = "ios", target_os = "macos")
+                any(target_os = "android", target_os = "ios", desktop)
             ))]
             auth: Signal::new(Auth::new()),
             #[cfg(feature = "back-button")]
@@ -339,7 +339,7 @@ impl NativePlugins {
                     target_arch = "wasm32",
                     target_os = "android",
                     target_os = "ios",
-                    target_os = "macos"
+                    desktop
                 )
             ))]
             external_url: Signal::new(ExternalUrl::new()),
@@ -367,7 +367,7 @@ impl NativePlugins {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl Default for NativePlugins {
     fn default() -> Self {
@@ -381,7 +381,7 @@ pub fn NativePluginsProvider(children: Element) -> Element {
         target_arch = "wasm32",
         target_os = "android",
         target_os = "ios",
-        target_os = "macos"
+        desktop
     ))]
     let _plugins = use_context_provider(NativePlugins::default);
     // After the first render, so the page exists to receive the insets.
@@ -543,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn storage_encrypts_values_and_refuses_to_pretend_on_macos() {
+    fn storage_encrypts_values_and_refuses_to_pretend_on_desktop() {
         let source = production_source(include_str!("storage.rs"));
         let kotlin = include_str!(
             "android/storage/src/main/kotlin/dev/dioxus/g3_native_plugins/storage/StoragePlugin.kt",
@@ -584,7 +584,7 @@ mod tests {
         assert!(source.contains("pub fn new() -> Self"));
         // A store that silently discards is worse than one that says it cannot
         // help, so this plugin alone does not compile to an inert no-op.
-        assert!(source.contains("Secure storage is not implemented on macOS"));
+        assert!(source.contains("Secure storage is not implemented on desktop"));
         // Android: Keystore-held AES-GCM, and no Tink dependency behind an
         // unmaintained library to get it.
         assert!(kotlin.contains("AndroidKeyStore"));
@@ -841,6 +841,33 @@ mod tests {
     }
 
     #[test]
+    fn desktop_clipboard_copies_for_real_and_shares_on_windows() {
+        let rust = production_source(include_str!("clipboard.rs"));
+        let build = include_str!("../build.rs");
+        // Every desktop, not only macOS: Windows had no NativePlugins at all.
+        assert!(build.contains("cargo::rustc-cfg=desktop"));
+        assert!(production_source(include_str!("lib.rs")).contains(
+            "target_os = \"android\",\n    target_os = \"ios\",\n    desktop\n))]\n#[derive(Clone, Copy)]",
+        ));
+        // A copy that reports success must have copied.
+        assert!(rust.contains("arboard::Clipboard::new()"));
+        assert!(rust.contains(".set_text(text)"));
+        // Opened lazily, so a server never opens a clipboard.
+        assert!(rust.contains("system: None"));
+        // Windows' sheet needs a title, and one handler at a time.
+        assert!(rust.contains("IDataTransferManagerInterop"));
+        assert!(rust.contains("ShowShareUIForWindow"));
+        assert!(rust.contains("SetTitle(&title)"));
+        assert!(rust.contains("RemoveDataRequested(token)"));
+        // Where share copies instead, an app can tell.
+        assert_eq!(
+            rust.matches("pub fn has_share_sheet(&self) -> bool")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
     fn ios_plugins_share_one_swift_package_for_current_dx() {
         let manifest = include_str!("ios/Package.swift");
         let auth = include_str!("auth.rs");
@@ -1047,6 +1074,13 @@ mod tests {
         assert!(kotlin.contains("setMediaSession(session.sessionToken)"));
         assert!(kotlin.contains("OnWindowVisibilityChangeListener"));
         assert!(service.contains("STOP_FOREGROUND_DETACH"));
+        assert!(manifest.contains("android.permission.WAKE_LOCK"));
+        assert!(kotlin.contains("putExtra(PlaybackService.EXTRA_PLAYING, playing)"));
+        assert!(kotlin.contains("PlaybackService.ACTION_UPDATE_PLAYBACK"));
+        assert!(service.contains("getBooleanExtra(EXTRA_PLAYING, false)"));
+        assert!(service.contains("PowerManager.PARTIAL_WAKE_LOCK"));
+        assert!(service.contains("WifiManager.WIFI_MODE_FULL_HIGH_PERF"));
+        assert!(service.contains("override fun onDestroy()"));
         assert!(manifest.contains("android:launchMode=\"singleTask\""));
         assert!(!kotlin.contains("setSourceRectHint"));
         assert!(kotlin.contains("SCREEN_ORIENTATION_SENSOR_LANDSCAPE"));

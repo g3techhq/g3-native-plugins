@@ -268,14 +268,14 @@ pub enum PurchaseState {
 /// be checked server-side against the store, and a plugin running on the user's
 /// device is not in a position to do that credibly.
 ///
-/// The web and macOS builds are inert. Callers need no cfg of their own.
+/// The web and desktop builds are inert. Callers need no cfg of their own.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub struct InAppPurchases {
     plugin: Option<InAppPurchasesHandle>,
 }
 
 /// The inert store facade: see the native [`InAppPurchases`] for the contract.
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 pub struct InAppPurchases;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -577,7 +577,7 @@ impl InAppPurchases {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl InAppPurchases {
     pub(crate) fn new() -> Self {
         Self

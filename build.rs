@@ -42,6 +42,16 @@ const SWIFT_PLUGINS: &[(&str, &str)] = &[
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
 
+    // `desktop` is every native target that is not a phone: macOS, Windows,
+    // Linux and the BSDs. One name keeps the plugins' cfgs from listing them
+    // all, and from forgetting one, which left Windows with no `NativePlugins`.
+    println!("cargo::rustc-check-cfg=cfg(desktop)");
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    if arch != "wasm32" && os != "android" && os != "ios" {
+        println!("cargo::rustc-cfg=desktop");
+    }
+
     let mut product = String::from("G3NativePlugins");
     let mut any = false;
     for (feature, token) in SWIFT_PLUGINS {

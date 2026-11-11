@@ -189,7 +189,7 @@ impl WireEvent {
 /// A server that sends through FCM for both platforms can still address the
 /// APNs token through FCM's APNs support, or send to APNs itself.
 ///
-/// The web and macOS builds are inert, so callers need no cfg of their own.
+/// The web and desktop builds are inert, so callers need no cfg of their own.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub struct PushNotifications {
     plugin: Option<PushNotificationsHandle>,
@@ -197,7 +197,7 @@ pub struct PushNotifications {
 
 /// The inert push facade: see the native [`PushNotifications`] for the
 /// contract.
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 pub struct PushNotifications;
 
 #[cfg(target_os = "android")]
@@ -318,7 +318,7 @@ impl PushNotifications {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl PushNotifications {
     /// Create the inert facade.
     pub fn new() -> Self {
@@ -355,7 +355,7 @@ impl PushNotifications {
     target_arch = "wasm32",
     target_os = "android",
     target_os = "ios",
-    target_os = "macos"
+    desktop
 ))]
 impl Default for PushNotifications {
     fn default() -> Self {

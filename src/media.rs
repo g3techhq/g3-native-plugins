@@ -30,7 +30,7 @@ const MEDIA_PLUGIN_CLASS: &str = "dev.dioxus.g3_native_plugins.media.MediaPlugin
 /// routes the resulting controls back into the same player element, so one call
 /// site drives both.
 ///
-/// The web and macOS builds are inert, so callers need no cfg of their own.
+/// The web and desktop builds are inert, so callers need no cfg of their own.
 #[cfg(target_os = "android")]
 pub struct Media {
     plugin: Option<crate::android_bridge::AndroidPlugin>,
@@ -42,7 +42,7 @@ pub struct Media {
     plugin: Option<MediaPlugin>,
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 /// An inert media facade for targets without a native media session.
 pub struct Media;
 
@@ -191,7 +191,7 @@ impl Media {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl Media {
     pub(crate) fn new() -> Self {
         Self

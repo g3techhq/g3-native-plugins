@@ -99,14 +99,14 @@ pub struct CapturePermissions {
 /// the same as [`crate::Geolocation`].
 ///
 /// The web build is inert: a browser page already has the Permissions API and
-/// its own prompt. macOS is inert too.
+/// its own prompt. Desktop is inert too.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub struct CameraMicrophone {
     plugin: Option<CameraMicrophoneHandle>,
 }
 
 /// The inert capture-permission facade: see the native [`CameraMicrophone`].
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 pub struct CameraMicrophone;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -218,7 +218,7 @@ impl CameraMicrophone {
     }
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "macos"))]
+#[cfg(any(target_arch = "wasm32", desktop))]
 impl CameraMicrophone {
     pub(crate) fn new() -> Self {
         Self

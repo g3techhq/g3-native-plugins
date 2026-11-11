@@ -43,8 +43,8 @@ pub struct Auth {
     plugin: Option<AuthHandle>,
 }
 
-#[cfg(target_os = "macos")]
-/// An inert authentication facade for the macOS smoke-test build.
+#[cfg(desktop)]
+/// An inert authentication facade for desktop builds.
 pub struct Auth;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -103,7 +103,7 @@ impl Auth {
     /// an error; to sign in without one, call `start_google_auth`.
     ///
     /// Android only. iOS has no native Google flow (sign in with Google on the
-    /// web there), so on iOS and macOS this does nothing and returns `Ok(())`.
+    /// web there), so on iOS and desktop this does nothing and returns `Ok(())`.
     #[cfg(target_os = "android")]
     pub fn start_google_auth_with_nonce(
         &mut self,
@@ -173,18 +173,18 @@ impl Auth {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(desktop)]
 impl Auth {
     pub(crate) fn new() -> Self {
         Self
     }
 
-    /// No-op Apple sign-in request for the macOS smoke-test build.
+    /// No-op Apple sign-in request for desktop builds.
     pub fn start_apple_auth(&mut self, _state: &str, _nonce: &str) -> Result<(), String> {
         Ok(())
     }
 
-    /// Inert: macOS has no native Google sign-in.
+    /// Inert: desktop has no native Google sign-in.
     pub fn start_google_auth_with_nonce(
         &mut self,
         _server_client_id: &str,
@@ -193,12 +193,12 @@ impl Auth {
         Ok(())
     }
 
-    /// Returns no result because macOS authentication is not implemented.
+    /// Returns no result because desktop authentication is not implemented.
     pub fn poll_auth_result(&mut self) -> Result<Option<String>, String> {
         Ok(None)
     }
 
-    /// Returns false because macOS authentication never enters a waiting state.
+    /// Returns false because desktop authentication never enters a waiting state.
     pub fn is_auth_awaiting(&mut self) -> bool {
         false
     }

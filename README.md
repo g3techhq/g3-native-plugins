@@ -20,7 +20,7 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `app-info` | yes | iOS only | no | Installed package identifier, version and native build. Returns `None` on macOS/web/server. No provider is needed. |
 | `appearance` | yes | not needed | not needed | The system's dark-mode setting, which an Android WebView reports wrongly, and the system-bar icon color for an edge-to-edge page. Elsewhere `None` and inert: the page's own media query is right. |
 | `camera-microphone` | yes | iOS only | n/a | Permission state, prompting, and the Settings escape hatch around `getUserMedia`. Not a capture API. |
-| `clipboard` | yes | iOS only | yes | Copy plus a native share sheet on mobile. macOS is inert. |
+| `clipboard` | yes | iOS; macOS copies | yes | Copy plus a share sheet. On desktop copying is real on Windows, macOS and Linux, and Windows opens its own Share sheet; macOS and Linux have none here, so `share` copies. `has_share_sheet()` says which happened. |
 | `auth` | yes | iOS only | no | Google Sign-In on Android (optionally bound to a server nonce), Sign in with Apple on iOS. The Google calls are Android-only: `start_google_auth_with_nonce` is inert on iOS and macOS, which have no native Google flow. macOS is inert. |
 | `external-url` | yes | iOS only | yes | Opens the system browser. macOS is inert. |
 | `geolocation` | yes | iOS only | n/a | Start-and-poll position requests and the runtime permission prompt. Web is inert on purpose: use `navigator.geolocation`. |
@@ -32,7 +32,12 @@ platform shows up as nothing happening at runtime, not as a compile error.
 | `media` | yes | iOS only | no | Background playback, lock-screen controls, and Now Playing metadata. |
 | `notifications` | yes | iOS only | no | Local notifications: now or scheduled, buttons and replies, Android channels. |
 | `push-notifications` | yes | iOS only | no | Remote push: FCM on Android, APNs on iOS. Turns on `notifications`. |
-| `updater` | yes | iOS only | no | Signed updates of the installed app, from a Tauri-style update server, or the store page for a store build. Android installs the APK with `updater-install`; Windows, macOS and Linux install too (they have no `NativePlugins`: use `Updater::new()`); iOS opens an ad hoc or enterprise install link. See [App updates](#app-updates). |
+| `updater` | yes | iOS only | no | Signed updates of the installed app, from a Tauri-style update server, or the store page for a store build. Android installs the APK with `updater-install`; Windows, macOS and Linux install too; iOS opens an ad hoc or enterprise install link. See [App updates](#app-updates). |
+
+Desktop (Windows, macOS and Linux) has a `NativePlugins` like every other
+target, so one call site serves all of them. Its plugins are inert there
+except the clipboard, the updater, and storage, which reports an error rather
+than pretend to store.
 
 The `deep_links` module's metadata builders are not feature-gated and build
 everywhere, including on the server. Only receiving a link needs the
@@ -131,7 +136,19 @@ plugins.clipboard.write().copy_to_clipboard("Invite copied".to_string())?;
 plugins.clipboard.write().share("Join my game".to_string())?;
 ```
 
-The web implementation uses the browser Clipboard and Web Share APIs. Android and iOS use the bundled Manganis FFI plugin sources under `src/android` and `src/ios`.
+The web implementation uses the browser Clipboard and Web Share APIs. Android and iOS use the bundled Manganis FFI plugin sources under `src/android` and `src/ios`. Desktop copies through [arboard](https://crates.io/crates/arboard), and on Windows shares through the system Share sheet for the active window.
+
+Where there is no share sheet (a browser without Web Share, such as desktop Firefox, and macOS and Linux desktop), `share` copies the text instead. Check `has_share_sheet()` to tell the user it was copied:
+
+```rust,ignore
+let mut clipboard = plugins.clipboard.write();
+if clipboard.has_share_sheet() {
+    clipboard.share(text)?;
+} else {
+    clipboard.copy_to_clipboard(link)?;
+    // say "Link copied"
+}
+```
 
 ## Auth
 
@@ -886,8 +903,8 @@ match updater.state() {
 ```
 
 Every `Updater` handle shares one process-wide state, so `Updater::new()` and
-`NativePlugins::updater` are the same updater. Windows and Linux have no
-`NativePlugins`; use `Updater::new()` there.
+`NativePlugins::updater` are the same updater; `Updater::new()` is for code
+that runs before the provider.
 
 `install()` on Windows, macOS and Linux **ends the process** once the new
 version is on its way: save what needs saving before calling it.

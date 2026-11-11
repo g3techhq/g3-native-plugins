@@ -73,7 +73,7 @@ unsafe extern "Swift" {
 /// on an instance that has since been dropped.
 ///
 /// On the web the browser hands the app its URL directly and the router already
-/// routes it, and macOS has no equivalent delivery, so both are inert and
+/// routes it, and desktop has no equivalent delivery, so both are inert and
 /// callers need no cfg of their own.
 #[cfg(all(feature = "deep-links", any(target_os = "android", target_os = "ios")))]
 pub struct DeepLinks {
@@ -81,10 +81,7 @@ pub struct DeepLinks {
 }
 
 /// The inert deep-link facade: see the native [`DeepLinks`] for the contract.
-#[cfg(all(
-    feature = "deep-links",
-    any(target_arch = "wasm32", target_os = "macos")
-))]
+#[cfg(all(feature = "deep-links", any(target_arch = "wasm32", desktop)))]
 pub struct DeepLinks;
 
 #[cfg(all(feature = "deep-links", any(target_os = "android", target_os = "ios")))]
@@ -146,17 +143,14 @@ impl DeepLinks {
     }
 }
 
-#[cfg(all(
-    feature = "deep-links",
-    any(target_arch = "wasm32", target_os = "macos")
-))]
+#[cfg(all(feature = "deep-links", any(target_arch = "wasm32", desktop)))]
 impl DeepLinks {
     /// Create the inert deep-link facade used where nothing delivers links.
     pub fn new() -> Self {
         Self
     }
 
-    /// No-op: the browser routes its own URL, and macOS delivers no links here.
+    /// No-op: the browser routes its own URL, and desktop delivers no links here.
     pub fn prepare(&mut self) -> Result<(), String> {
         Ok(())
     }
@@ -173,7 +167,7 @@ impl DeepLinks {
         target_arch = "wasm32",
         target_os = "android",
         target_os = "ios",
-        target_os = "macos"
+        desktop
     )
 ))]
 impl Default for DeepLinks {
