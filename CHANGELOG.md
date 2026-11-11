@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Android media: hold CPU and Wi-Fi playback locks through buffering so
+  screen-off streaming can refill its buffer. Explicit pause releases them
+  immediately, independently of the foreground-service grace period; stopping
+  or destroying the service releases them too.
+
 ### Changed
 
 - **Breaking:** `updater` now updates the installed app instead of the files

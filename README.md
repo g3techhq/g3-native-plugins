@@ -698,6 +698,11 @@ requires: a foreground service and picture-in-picture actions on Android, a
 `MPRemoteCommandCenter` commands on iOS. Controls on either platform drive the
 same player element through the same script.
 
+Android holds CPU and Wi-Fi wake locks while playback is active, including
+buffering. Pause releases the locks immediately, even while the foreground
+service keeps the media controls available during its grace period. Clearing
+playback or destroying the service also releases them.
+
 Two things iOS can only ask for, not enforce, so the host app has to allow them:
 picture-in-picture needs the `WKWebView` built with
 `allowsPictureInPictureMediaPlayback` (the configuration is immutable once the

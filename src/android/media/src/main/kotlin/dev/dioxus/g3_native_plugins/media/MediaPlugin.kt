@@ -550,6 +550,7 @@ class MediaPlugin(private val activity: Activity) {
         lastNotification = notification
         val intent = Intent(activity, PlaybackService::class.java)
             .putExtra(PlaybackService.EXTRA_NOTIFICATION, notification)
+            .putExtra(PlaybackService.EXTRA_PLAYING, playing)
         val notifications = activity.getSystemService(NotificationManager::class.java)
         if (playing) cancelPendingDetach() else if (serviceForeground) scheduleDetach()
         when {
@@ -573,8 +574,12 @@ class MediaPlugin(private val activity: Activity) {
                     false
                 }
             }
-            // Paused: still foreground for a while (see `PAUSED_FOREGROUND_MS`),
-            // so only the notification changes.
+            serviceForeground -> {
+                // Update intent without restarting foreground playback. The
+                // paused notification stays available, but its locks release
+                // immediately instead of lasting through the pause grace.
+                activity.startService(intent.setAction(PlaybackService.ACTION_UPDATE_PLAYBACK))
+            }
             else -> notifications.notify(PlaybackService.NOTIFICATION_ID, notification)
         }
     }
