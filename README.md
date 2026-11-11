@@ -830,7 +830,9 @@ platform, checks it against a minisign public key compiled into the app, and
 installs it: a sideloaded APK, a desktop installer, an ad hoc or enterprise
 iOS build. A build from a store, which may not install itself, still learns
 that an update is out: its release entry names the store page, and
-`install()` opens it.
+`install()` opens it. An app that uses g3-brand already gets store-update prompts
+from its catalog, with snooze and required updates; use this store mode only
+for an app without it.
 
 | Platform | Release file | Installed by | What the user sees |
 | --- | --- | --- | --- |
