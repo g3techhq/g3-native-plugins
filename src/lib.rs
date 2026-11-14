@@ -475,6 +475,8 @@ mod tests {
         // Android: cold start from the launch Intent, read once; warm links
         // through the listener, since onNewIntent cannot be overridden here.
         assert!(kotlin.contains("Intent.ACTION_VIEW"));
+        // Shared text too, for apps that declare a SEND filter.
+        assert!(kotlin.contains("Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)"));
         assert!(kotlin.contains("enqueue(activity.intent)"));
         assert!(kotlin.contains("launchIntentConsumed = true"));
         assert!(kotlin.contains("addOnNewIntentListener"));

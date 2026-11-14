@@ -7,7 +7,8 @@ import java.lang.ref.WeakReference
 import java.util.ArrayDeque
 
 /**
- * Collects the URLs an App Link or custom scheme launches the app with.
+ * Collects the URLs an App Link or custom scheme launches the app with, and
+ * the text shared to it, for an app that declares an `ACTION_SEND` filter.
  *
  * Android delivers a link as an `ACTION_VIEW` Intent, in one of two ways
  * depending on whether the app was already running: as the Activity's launch
@@ -42,9 +43,16 @@ class DeepLinksPlugin(private val activity: Activity) {
         private var launchIntentConsumed = false
 
         private fun enqueue(intent: Intent?) {
-            if (intent == null || intent.action != Intent.ACTION_VIEW) return
-            val url = intent.dataString ?: return
-            synchronized(pending) { pending.addLast(url) }
+            val link = when (intent?.action) {
+                Intent.ACTION_VIEW -> intent.dataString
+                // Share hands over text, not a URL, and often a sentence
+                // around the link. It is queued as it came; the app finds
+                // the link in it. Only apps that declare a SEND filter get
+                // here at all.
+                Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+                else -> null
+            } ?: return
+            synchronized(pending) { pending.addLast(link) }
         }
 
         private fun take(): String? = synchronized(pending) { pending.pollFirst() }

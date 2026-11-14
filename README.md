@@ -594,6 +594,11 @@ that arrives before the app has rendered anything able to receive it. The queue
 lives on the native side and is shared across plugin instances, so preparing
 early and reading later from the provider both see the same links.
 
+**Shared text on Android.** An app that also declares an `ACTION_SEND`
+intent filter for `text/plain` gets what is shared to it through the same
+queue: the `EXTRA_TEXT` as it came, which is often a sentence around a link
+rather than a URL, so parse it rather than route on it directly.
+
 **Cold start on iOS is the one timing-sensitive case.** A link that starts the
 app is delivered before any plugin exists, so it is recovered from the launch
 options via `UIApplication.didFinishLaunchingNotification` — which only works if

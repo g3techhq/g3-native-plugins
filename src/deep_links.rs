@@ -38,6 +38,10 @@ unsafe extern "Swift" {
 
 /// The URLs a universal link, App Link, or custom scheme opened the app with.
 ///
+/// On Android an app that declares an `ACTION_SEND` filter for `text/plain`
+/// also receives what is shared to it here, as the shared text, which need
+/// not be a URL at all.
+///
 /// This is the receiving half of deep linking. Declaring the links is already
 /// handled elsewhere: the Dioxus CLI writes the `Info.plist` and manifest
 /// entries from `[deep_links]` in `Dioxus.toml`, and the builders in this

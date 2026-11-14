@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and Linux (through arboard), where the macOS build used to report success
   without copying. `share` opens the Windows Share sheet for the active
   window, and copies on macOS and Linux.
+- `deep_links` on Android also queues text shared to an app that declares an
+  `ACTION_SEND` filter for `text/plain`: the `EXTRA_TEXT` as it came, often a
+  sentence around a link, for the app to parse.
 - `Clipboard::has_share_sheet()`, on every target, says whether `share`
   opens a sheet or copies, so an app can tell the user the text was copied.
   The web answers from the Web Share API, which desktop Firefox lacks.
