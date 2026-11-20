@@ -11,6 +11,14 @@
 //! `dx`'s NSIS installer does not remember where it was installed, so it is
 //! told: `/D=` with this executable's folder, or a silent update would land in
 //! the default folder beside the old copy.
+//!
+//! The helper waits for the installer's own process, not with `Start-Process
+//! -Wait`: that waits for everything the installer started as well, and the
+//! WebView2 bootstrapper inside it can leave Edge's updater running for as
+//! long as it likes, so the app never came back. It stops waiting after
+//! [`INSTALLER_MINUTES`] and reopens the app either way. Each step goes in
+//! `update.log` in the updater's folder, since nothing else can say what a
+//! hidden helper did once the app was gone.
 
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -33,6 +41,12 @@ pub(super) fn open_url(url: &str) -> Result<(), String> {
 }
 
 pub(super) fn clean_up() {}
+
+/// How long the helper waits for the installer before reopening the app.
+const INSTALLER_MINUTES: u32 = 5;
+
+/// What the last update's helper did, kept until the next update.
+const LOG: &str = "update.log";
 
 /// Which installer a file is, by content: an MSI is an OLE compound file, an
 /// NSIS installer an executable.
@@ -63,7 +77,8 @@ pub(super) fn install(payload: &Path, hint: Option<&str>) -> Result<(), String> 
     let exe = std::env::current_exe()
         .map_err(|error| format!("Failed to find this app's executable: {error}"))?;
     let folder = exe.parent().ok_or("This app's executable has no folder")?;
-    let script = script(std::process::id(), &installer, payload, folder, &exe);
+    let log = super::data_dir()?.join(LOG);
+    let script = script(std::process::id(), &installer, payload, folder, &exe, &log);
     spawn(&script)
 }
 
@@ -75,19 +90,20 @@ pub(super) fn script(
     payload: &Path,
     folder: &Path,
     exe: &Path,
+    log: &Path,
 ) -> String {
     let quote = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', "''"));
     let run = match installer {
         // NSIS reads `/D=` as the rest of the command line, unquoted, so it
         // goes last; Start-Process joins the array with spaces.
         Installer::Nsis => format!(
-            "Start-Process -FilePath {} -ArgumentList '/S', {} -Wait",
+            "Start-Process -FilePath {} -ArgumentList '/S', {} -PassThru",
             quote(payload),
             quote(Path::new(&format!("/D={}", folder.display()))),
         ),
         // msiexec wants the path quoted inside its one argument string.
         Installer::Msi => format!(
-            "Start-Process -FilePath 'msiexec.exe' -ArgumentList {} -Wait",
+            "Start-Process -FilePath 'msiexec.exe' -ArgumentList {} -PassThru",
             quote(Path::new(&format!(
                 "/i \"{}\" /passive /norestart",
                 payload.display()
@@ -96,12 +112,26 @@ pub(super) fn script(
     };
     // The app restarts whether or not the installer succeeded: the old
     // version is still there if it did not, which beats no app at all.
+    let wait = u64::from(INSTALLER_MINUTES) * 60_000;
     format!(
-        "$ErrorActionPreference = 'Continue'\n\
+        "$ErrorActionPreference = 'Stop'\n\
+         $log = {log}\n\
+         function Note($text) {{ try {{ Add-Content -LiteralPath $log -Value ((Get-Date -Format o) + ' ' + $text) }} catch {{ }} }}\n\
+         try {{ Set-Content -LiteralPath $log -Value ((Get-Date -Format o) + ' Waiting for the app (process {pid}) to exit') }} catch {{ }}\n\
          Wait-Process -Id {pid} -Timeout 60 -ErrorAction SilentlyContinue\n\
-         try {{ {run} }} catch {{ }}\n\
-         Start-Process -FilePath {}\n",
-        quote(exe),
+         try {{\n\
+         Note 'Starting the installer'\n\
+         $installer = {run}\n\
+         if ($installer.WaitForExit({wait})) {{\n\
+         $code = try {{ $installer.ExitCode }} catch {{ 'unknown' }}\n\
+         Note ('The installer exited with code ' + $code)\n\
+         }} else {{\n\
+         Note 'The installer was still running after {INSTALLER_MINUTES} minutes; reopening the app anyway'\n\
+         }}\n\
+         }} catch {{ Note ('The installer did not run: ' + $_) }}\n\
+         try {{ Start-Process -FilePath {exe}; Note 'Reopened the app' }} catch {{ Note ('The app did not reopen: ' + $_) }}\n",
+        log = quote(log),
+        exe = quote(exe),
     )
 }
 
@@ -172,13 +202,16 @@ mod tests {
             Path::new(r"C:\Users\O'Neil\cache\Tawny-setup.exe"),
             Path::new(r"C:\Program Files\Tawny"),
             Path::new(r"C:\Program Files\Tawny\tawny.exe"),
+            Path::new(r"C:\Users\O'Neil\cache\update.log"),
         );
+        assert!(script.contains(r"$log = 'C:\Users\O''Neil\cache\update.log'"));
         assert!(script.contains("Wait-Process -Id 42"));
         assert!(script.contains(r"-FilePath 'C:\Users\O''Neil\cache\Tawny-setup.exe'"));
-        assert!(script.contains(r"-ArgumentList '/S', '/D=C:\Program Files\Tawny' -Wait"));
-        assert!(
-            script.ends_with("Start-Process -FilePath 'C:\\Program Files\\Tawny\\tawny.exe'\n")
-        );
+        assert!(script.contains(r"-ArgumentList '/S', '/D=C:\Program Files\Tawny' -PassThru"));
+        // Only the installer itself is waited for, and not for ever.
+        assert!(!script.contains("-Wait"));
+        assert!(script.contains("$installer.WaitForExit(300000)"));
+        assert!(script.contains(r"Start-Process -FilePath 'C:\Program Files\Tawny\tawny.exe'"));
         let script = script_msi();
         assert!(script.contains(r#"'/i "C:\cache\Tawny.msi" /passive /norestart'"#));
     }
@@ -206,7 +239,16 @@ mod tests {
             .unwrap();
         let pid = waited.id();
         waited.wait().unwrap();
-        spawn(&script(pid, &Installer::Nsis, &installer, &root, &app)).unwrap();
+        let log = root.join("update.log");
+        spawn(&script(
+            pid,
+            &Installer::Nsis,
+            &installer,
+            &root,
+            &app,
+            &log,
+        ))
+        .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
         while !relaunched.exists() && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(200));
@@ -214,6 +256,14 @@ mod tests {
         let passed = std::fs::read_to_string(&args).unwrap_or_default();
         assert_eq!(passed.trim(), format!("/S /D={}", root.display()));
         assert!(relaunched.exists(), "the app was not started again");
+        // The log's last line lands just after the app starts.
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let logged = std::fs::read_to_string(&log).unwrap_or_default();
+        assert!(
+            logged.contains("The installer exited with code 0"),
+            "{logged}"
+        );
+        assert!(logged.contains("Reopened the app"), "{logged}");
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -224,6 +274,7 @@ mod tests {
             Path::new(r"C:\cache\Tawny.msi"),
             Path::new(r"C:\Tawny"),
             Path::new(r"C:\Tawny\tawny.exe"),
+            Path::new(r"C:\cache\update.log"),
         )
     }
 
